@@ -1,0 +1,8 @@
+PyQt5==5.15.7
+pynput==1.7.6
+ffmpeg-python
+requests
+os
+subprocess
+threading
+time
