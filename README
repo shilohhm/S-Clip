@@ -1,13 +1,24 @@
-# Clipping Software
+# S-Clip 🎥  
 
-A high-performance screen clipping tool with a modern GUI.
+**S-Clip** is a lightweight, high-performance screen clipping and recording software for Windows.  
+It allows users to **instantly clip the last 30 seconds** of their screen or manually **record and stop** with ease.  
 
-## Requirements
-- Python 3.8+
-- FFmpeg installed and added to PATH.
+---
 
-## Installation
-1. Clone this repository.
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
+## 🚀 Features
+✅ **Instant Replay Clipping** - Press a hotkey to save the last 30 seconds of your screen.  
+✅ **Manual Recording Mode** - Start and stop recording whenever you want.  
+✅ **Customizable Settings** - Adjust resolution, FPS, encoder, and more.  
+✅ **Minimal Performance Impact** - Optimized FFmpeg usage for low CPU/GPU overhead.  
+✅ **Modern UI** - Clean and stylish dark theme with purple accents.  
+✅ **Fully Open Source** - Modify and improve as needed!
+
+---
+
+## 🔧 Installation
+
+### 1️⃣ Install Dependencies:
+Ensure you have **Python 3.8+** installed, then run:
+
+```bash
+pip install -r requirements.txt
