@@ -76,7 +76,7 @@ class CaptureThread(threading.Thread):
             print(f"✅ Manual recording saved: {self.output_file}")
 
     def stop_recording(self):
-        if self.mode == "manual" and self.ffmpeg_process:
+        if (self.mode == "manual" or self.mode == "buffer") and self.ffmpeg_process:
             print("⏹ Stopping manual recording gracefully...")
             try:
                 # Send 'q' to FFmpeg's stdin to quit gracefully.
