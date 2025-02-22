@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QSpinBox, QComboBox, QPushButton, QMessageBox, QSizePolicy
+    QLineEdit, QSpinBox, QComboBox, QPushButton, QMessageBox, QSizePolicy, QCheckBox
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QIcon
@@ -12,6 +12,11 @@ class ClippingApp(QMainWindow):
         self.setWindowTitle("S-Clip")
         self.setWindowIcon(QIcon("sclip_icon.png"))  # Ensure your icon file is in the project folder or adjust the path.
         self.setGeometry(100, 100, 1000, 700)  # Larger window size
+
+
+        self.replay_buffer_checkbox = QCheckBox("Replay Buffer")
+        self.replay_buffer_checkbox.stateChanged.connect(self.toggle_replay_buffer)
+
 
         # Modern dark theme with dark gray background and dark purple accents,
         # using Roboto with fallback to Segoe UI.
@@ -56,11 +61,18 @@ class ClippingApp(QMainWindow):
         # Default settings
         self.settings = {
             "resolution": "1920x1080",
-            "fps": 30,
+            "fps": 60,
             "encoder": "libx264",
             "preset": "ultrafast",
             "hotkey": "F5"
         }
+
+        self.encoder_presets = {
+            "libx264": ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "veryslow"],
+            "h264_nvenc": ["default", "hp","llhp","fast", "medium","slow","bq","hq","ll","llhq","lossless","losslesshp",],
+            "hevc_nvenc": ["fast", "medium", "slow"]
+        }
+        
         
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -104,8 +116,9 @@ class ClippingApp(QMainWindow):
         enc_layout = QVBoxLayout()
         enc_label = QLabel("Encoder:")
         self.encoder = QComboBox()
-        self.encoder.addItems(["libx264", "h264_nvenc", "hevc_nvenc"])
+        self.encoder.addItems(self.encoder_presets.keys())
         self.encoder.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.encoder.currentIndexChanged.connect(self.update_presets)
         enc_layout.addWidget(enc_label)
         enc_layout.addWidget(self.encoder)
         settings_layout.addLayout(enc_layout)
@@ -114,7 +127,7 @@ class ClippingApp(QMainWindow):
         preset_layout = QVBoxLayout()
         preset_label = QLabel("Preset:")
         self.preset = QComboBox()
-        self.preset.addItems(["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "veryslow"])
+        self.update_presets()
         self.preset.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         preset_layout.addWidget(preset_label)
         preset_layout.addWidget(self.preset)
@@ -137,6 +150,15 @@ class ClippingApp(QMainWindow):
         save_button = QPushButton("Save Settings")
         save_button.clicked.connect(self.save_settings)
         buttons_layout.addWidget(save_button)
+
+        # Replay Buffer Checkbox
+        replay_buffer_layout = QVBoxLayout()
+        replay_buffer_label = QLabel("Replay Buffer:")
+        self.replay_buffer_checkbox = QCheckBox()
+        self.replay_buffer_checkbox.stateChanged.connect(self.toggle_replay_buffer)
+        replay_buffer_layout.addWidget(replay_buffer_label)
+        replay_buffer_layout.addWidget(self.replay_buffer_checkbox)
+        settings_layout.addLayout(replay_buffer_layout)
 
         record_button = QPushButton("Start Recording")
         record_button.clicked.connect(self.start_recording)
@@ -161,26 +183,54 @@ class ClippingApp(QMainWindow):
 
         self.capture_thread = None
 
+    def toggle_replay_buffer(self, state):
+        if state == Qt.Checked:
+            self.capture_thread = CaptureThread(
+                self.resolution_edit.text().strip(),
+                self.fps_spin.value(),
+                self.encoder.currentText(),
+                preset=self.preset.currentText(),
+                mode="buffer"
+            )
+            self.capture_thread.start()
+            print("DEBUG: Started replay buffer")
+            self.update_status("Replay buffer enabled")
+        else:
+            if self.capture_thread:
+                print("DEBUG: Attempting to stop replay buffer")
+                self.capture_thread.stop_recording()
+                print("DEBUG: stop_recording() called")
+                self.capture_thread = None
+                self.update_status("Replay buffer disabled")
+        
+
+
+
+    def update_presets(self):
+        current_encoder = self.encoder.currentText()
+        self.preset.clear()
+        self.preset.addItems(self.encoder_presets[current_encoder])
+
+
     def update_status(self, message):
         self.status_label.setText(message)
 
     def save_settings(self):
+        if self.capture_thread:
+            QMessageBox.warning(self, "Stop Recording", "Please stop the recording before saving settings.")
+            return
+
+        # Save settings
         self.settings["resolution"] = self.resolution_edit.text().strip()
         self.settings["fps"] = self.fps_spin.value()
         self.settings["encoder"] = self.encoder.currentText()
         self.settings["preset"] = self.preset.currentText()
         self.settings["hotkey"] = self.hotkey_edit.text().strip() or "F5"
+        self.settings["replay_buffer"] = self.replay_buffer_checkbox.isChecked()
+
         QMessageBox.information(self, "Settings Saved", "Settings have been updated!")
         self.update_status("Settings saved.")
-        if self.capture_thread:
-            self.capture_thread.stop_recording()
-        self.capture_thread = CaptureThread(
-            self.settings["resolution"],
-            self.settings["fps"],
-            self.settings["encoder"],
-            preset=self.settings["preset"]
-        )
-        self.capture_thread.start()
+        
 
     def start_recording(self):
         if not self.capture_thread:
@@ -203,13 +253,19 @@ class ClippingApp(QMainWindow):
 
     def clip_last_30_seconds(self):
         # This creates a one-shot thread that captures a 30s clip.
-        clip_thread = CaptureThread(
-            self.resolution_edit.text().strip(),
-            self.fps_spin.value(),
-            self.encoder.currentText(),
-            preset=self.preset.currentText(),
-            mode="clip"
-        )
-        clip_thread.start()
-        self.update_status("Clip captured.")
+        if self.replay_buffer_checkbox.isChecked():
+            clip_thread = CaptureThread(
+                self.resolution_edit.text().strip(),
+                self.fps_spin.value(),
+                self.encoder.currentText(),
+                preset=self.preset.currentText(),
+                mode="clip"
+            )
+            clip_thread.start()
+            self.update_status("Clip captured.")
+        else:
+            print("TEST: REPLAY BUFFER IS DISABLED** no clip saved")
+            
+
+            
 
