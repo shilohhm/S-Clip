@@ -64,7 +64,8 @@ class ClippingApp(QMainWindow):
             "fps": 60,
             "encoder": "libx264",
             "preset": "ultrafast",
-            "hotkey": "F5"
+            "hotkey": "F5",
+            "audio_device":"audio-default"
         }
 
         self.encoder_presets = {
@@ -73,6 +74,7 @@ class ClippingApp(QMainWindow):
             "hevc_nvenc": ["fast", "medium", "slow"]
         }
         
+        self.audio_devices = {"Audio Input": CaptureThread.list_audio_devices(), "Audio Output": CaptureThread.list_audio_devices()}
         
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -172,6 +174,25 @@ class ClippingApp(QMainWindow):
         clip_button.clicked.connect(self.clip_last_30_seconds)
         buttons_layout.addWidget(clip_button)
 
+
+        # Add Audio Device Selection
+        audio_layout = QVBoxLayout()
+        audio_label = QLabel("Select Audio Input:")
+        self.audio_input_combo = QComboBox()
+        self.audio_input_combo.addItems(CaptureThread.list_audio_devices())
+
+        audio_output_label = QLabel("Select Audio Output:")
+        self.audio_output_combo = QComboBox()
+        self.audio_output_combo.addItems(CaptureThread.list_audio_devices())
+
+        audio_layout.addWidget(audio_label)
+        audio_layout.addWidget(self.audio_input_combo)
+        audio_layout.addWidget(audio_output_label)
+        audio_layout.addWidget(self.audio_output_combo)
+
+        settings_layout.addLayout(audio_layout)
+
+
         main_layout.addStretch()
 
         # Status label for feedback
@@ -185,12 +206,14 @@ class ClippingApp(QMainWindow):
 
     def toggle_replay_buffer(self, state):
         if state == Qt.Checked:
+            audio_input_device = f"audio={self.audio_input_combo.currentText()}"  # Use the selected audio input from the GUI
             self.capture_thread = CaptureThread(
                 self.resolution_edit.text().strip(),
                 self.fps_spin.value(),
                 self.encoder.currentText(),
                 preset=self.preset.currentText(),
-                mode="buffer"
+                mode="buffer",
+                audio_input=audio_input_device
             )
             self.capture_thread.start()
             print("DEBUG: Started replay buffer")
@@ -202,8 +225,10 @@ class ClippingApp(QMainWindow):
                 print("DEBUG: stop_recording() called")
                 self.capture_thread = None
                 self.update_status("Replay buffer disabled")
-        
 
+
+
+                
 
 
     def update_presets(self):
@@ -230,26 +255,61 @@ class ClippingApp(QMainWindow):
 
         QMessageBox.information(self, "Settings Saved", "Settings have been updated!")
         self.update_status("Settings saved.")
-        
-
+            
     def start_recording(self):
-        if not self.capture_thread:
-            # Start continuous (manual) recording
-            self.capture_thread = CaptureThread(
-                self.resolution_edit.text().strip(),
-                self.fps_spin.value(),
-                self.encoder.currentText(),
-                preset=self.preset.currentText(),
-                mode="manual"
-            )
-            self.capture_thread.start()
-            self.update_status("Recording started.")
+        """Starts manual recording."""
+        if self.capture_thread and self.capture_thread.is_alive():
+            print("⚠️ Already recording!")
+            return
+
+        self.capture_thread = CaptureThread(
+            self.resolution_edit.text().strip(),
+            self.fps_spin.value(),
+            self.encoder.currentText(),
+            preset=self.preset.currentText(),
+            mode="manual",
+            audio_input=f"audio={self.audio_input_combo.currentText()}", #SOUND
+            audio_output=f"audio={self.audio_output_combo.currentText()}" #SOUND
+        )
+        self.capture_thread.start()
+        self.update_status("🔴 Recording started!")
+
+    def list_audio_devices():
+        devices = []
+        CaptureThread.list_audio_devices()
+
 
     def stop_recording(self):
-        if self.capture_thread:
+        """Stops manual recording."""
+        if self.capture_thread and self.capture_thread.is_alive():
+            print("🛑 Stopping recording...")
             self.capture_thread.stop_recording()
+            self.capture_thread.join()  # ✅ Wait for thread to fully stop
             self.capture_thread = None
-            self.update_status("Recording stopped.")
+            self.update_status("✅ Recording stopped!")
+        else:
+            print("⚠️ No active FFmpeg process found. It may have already stopped.")
+            self.update_status("No recording to stop")
+
+
+    # def start_recording(self):
+    #     if not self.capture_thread:
+    #         # Start continuous (manual) recording
+    #         self.capture_thread = CaptureThread(
+    #             self.resolution_edit.text().strip(),
+    #             self.fps_spin.value(),
+    #             self.encoder.currentText(),
+    #             preset=self.preset.currentText(),
+    #             mode="manual"
+    #         )
+    #         self.capture_thread.start()
+    #         self.update_status("Recording started.")
+
+    # def stop_recording(self):
+    #     if self.capture_thread:
+    #         self.capture_thread.stop_recording()
+    #         self.capture_thread = None
+    #         self.update_status("Recording stopped.")
 
     def clip_last_30_seconds(self):
         # This creates a one-shot thread that captures a 30s clip.
