@@ -1,0 +1,145 @@
+/* General UI styles */
+QMainWindow {
+    background-color: #2E2E2E;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+/* Title Label */
+QLabel#title {
+    color: #E0E0E0;
+    font-size: 28px;
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: bold;
+}
+
+/* Style for buttons */
+QPushButton {
+    background-color: #DC143C;
+    color: white;
+    border-radius: 10px;
+    font-size: 16px;
+    padding: 10px;
+    min-width: 150px;
+    max-height: 40px;
+}
+
+QPushButton:hover {
+    background-color: #FF6F61;
+}
+
+QPushButton:pressed {
+    background-color: #B22222;
+}
+
+/* Save Settings Button Style */
+QPushButton#save_button {
+    background-color: #4CAF50; /* Light Green */
+    color: white;
+    font-size: 16px;
+}
+
+QPushButton#save_button:hover {
+    background-color: #45A049;
+}
+
+QPushButton#save_button:pressed {
+    background-color: #388E3C;
+}
+
+/* Input fields (QLineEdit, QSpinBox, QComboBox) */
+QLineEdit, QSpinBox, QComboBox {
+    background-color: #3C3C3C;
+    color: #E0E0E0;
+    border-radius: 8px;
+    border: 2px solid #555555;
+    padding: 10px;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 16px;
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #3C3C3C;
+    color: #E0E0E0;
+    selection-background-color: #DC143C;
+    selection-color: white;
+}
+
+/* Focus Effect for input fields */
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+    border: 2px solid #FF6F61;
+}
+
+/* Replay Buffer Checkbox */
+QCheckBox {
+    color: #E0E0E0;
+    font-size: 16px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+QCheckBox::indicator {
+    border-radius: 5px;
+    background-color: #B22222; /* Darker Red for unchecked */
+    width: 20px;
+    height: 20px;
+}
+
+/* Hover effects for Checkboxes */
+QCheckBox:hover {
+    color: #DC143C;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #4CAF50; /* Green for checked state */
+}
+
+/* Status label */
+#status_label {
+    color: #E0E0E0;
+    font-size: 16px;
+    font-family: 'Segoe UI', sans-serif;
+    padding: 10px;
+}
+
+/* Layouts and containers */
+QVBoxLayout, QHBoxLayout {
+    spacing: 15px;
+}
+
+QVBoxLayout > QWidget, QHBoxLayout > QWidget {
+    margin: 5px;
+}
+
+/* Labels */
+QLabel {
+    color: #E0E0E0;
+    font-size: 18px;
+}
+
+/* Rounded borders for input fields and buttons */
+QComboBox, QLineEdit, QSpinBox, QPushButton {
+    border-radius: 10px;
+}
+
+
+
+/* Other miscellaneous UI elements */
+QWidget {
+    font-family: 'Segoe UI', sans-serif;
+}
+
+QComboBox, QLineEdit, QSpinBox {
+    padding: 8px 12px;
+    background-color: #3C3C3C;
+    color: #E0E0E0;
+}
+
+QPushButton {
+    padding: 12px 18px;
+    font-size: 16px;
+    min-width: 120px;
+}

@@ -1,0 +1,9 @@
+{
+    "resolution": "1920x1080",
+    "fps": 60,
+    "encoder": "libx264",
+    "preset": "ultrafast",
+    "hotkey": "F5",
+    "audio_device": "audio-default",
+    "replay_buffer": true
+}
