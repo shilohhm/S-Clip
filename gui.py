@@ -125,15 +125,20 @@ class ClippingApp(QMainWindow):
         layout.addLayout(fps_layout)
 
     # Encoder method
+# Encoder method
     def add_encoder_field(self, layout):
-            enc_layout = QVBoxLayout()
-            enc_label = QLabel("Encoder:")
-            self.encoder = QComboBox()
-            self.encoder.addItems(self.encoder_presets.keys())
-            self.encoder.setCurrentText(self.settings["encoder"])
-            enc_layout.addWidget(enc_label)
-            enc_layout.addWidget(self.encoder)
-            layout.addLayout(enc_layout)
+        enc_layout = QVBoxLayout()
+        enc_label = QLabel("Encoder:")
+        self.encoder = QComboBox()
+        self.encoder.addItems(self.encoder_presets.keys())
+        self.encoder.setCurrentText(self.settings["encoder"])
+        
+        # Connect the encoder selection change to update presets
+        self.encoder.currentTextChanged.connect(self.update_presets)
+        
+        enc_layout.addWidget(enc_label)
+        enc_layout.addWidget(self.encoder)
+        layout.addLayout(enc_layout)
 
     # Preset method
     def add_preset_field(self, layout):
@@ -225,10 +230,15 @@ class ClippingApp(QMainWindow):
 
 
 
+# Method to update the presets based on the selected encoder
     def update_presets(self):
         current_encoder = self.encoder.currentText()
-        self.preset.clear()
-        self.preset.addItems(self.encoder_presets[current_encoder])
+        self.preset.clear()  # Clear the current items
+        # Add the presets based on the selected encoder
+        self.preset.addItems(self.encoder_presets.get(current_encoder, []))
+
+
+
 
 
     def update_status(self, message):
@@ -279,13 +289,16 @@ class ClippingApp(QMainWindow):
                 self.fps_spin.value(),
                 self.encoder.currentText(),
                 preset=self.preset.currentText(),
-                mode="clip"
+                mode="clip",
+                audio_input=f"audio={self.audio_input_combo.currentText()}",  # Pass audio input
+                audio_output=f"audio={self.audio_output_combo.currentText()}"  # Pass audio output
             )
             clip_thread.start()
             self.update_status("Clip captured.")
         else:
             print("Replay buffer is disabled - No clip has been saved")
-            
+
+                
 
             
 

@@ -10,7 +10,7 @@ import platform
 
 
 class CaptureThread(threading.Thread):
-    def __init__(self, resolution="1920x1080", fps=60, encoder="libx264", preset="ultrafast", mode="clip",audio_input=None,audio_output=None):
+    def __init__(self, resolution, fps, encoder, preset, mode,audio_input,audio_output):
         """
         mode: "clip" for a one-shot 30-second clip,
               "manual" for continuous recording (stopped manually).
