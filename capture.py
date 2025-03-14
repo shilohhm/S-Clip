@@ -29,8 +29,9 @@ class CaptureThread(threading.Thread):
 
         self.audio_input = audio_input if audio_input else self.get_default_audio_device()
         self.audio_output = audio_output if audio_output else "audio=virtual-audio-capturer" #SOUND
-        self.stop_event = threading.Event()  
-        
+        self.stop_event = threading.Event()
+
+    
 
 
         
