@@ -77,46 +77,38 @@ class CaptureThread(threading.Thread):
         """Gracefully stops recording by sending 'q' to FFmpeg."""
         if self.ffmpeg_process:
             print("⏹ Stopping recording...")
-
             self.stop_event.set()
 
-            # Check if the FFmpeg process is still running
             if self.ffmpeg_process.poll() is None:  # Process is still running
                 try:
                     if self.ffmpeg_process.stdin:
-                        self.ffmpeg_process.stdin.write("q\n")  # Send 'q' to stop recording
-                        self.ffmpeg_process.stdin.flush()  # Ensure it's processed immediately
-                        self.ffmpeg_process.stdin.close()  # Close stdin to indicate done
+                        self.ffmpeg_process.stdin.write("q\n")
+                        self.ffmpeg_process.stdin.flush()
+                        self.ffmpeg_process.stdin.close()
                         print("✅ 'q' command sent to FFmpeg.")
-                    
-                    # Wait for FFmpeg to finish
-                    self.ffmpeg_process.wait(timeout=2)  # Increased timeout for safety
-                    print("✅ FFmpeg process stopped cleanly.")
+
+                    self.ffmpeg_process.wait(timeout=2)  # Give FFmpeg time to stop
 
                 except (subprocess.TimeoutExpired, BrokenPipeError, OSError, ValueError, IOError) as e:
-                    # Handle errors if FFmpeg does not respond as expected
-                    print(f"⚠️ FFmpeg process may already be closed or unresponsive: {e}")
-                    # self.ffmpeg_process.kill()  # Force kill if necessary
+                    print(f"⚠️ FFmpeg process may already be closed: {e}")
 
                 finally:
                     print("✅ Recording stopped successfully.")
                     self.ffmpeg_process = None
 
-                    # Ensure the file was created and is not corrupt
-                    if os.path.exists(self.output_file) and os.path.getsize(self.output_file) > 1000:
+                    # Verify clip exists before accessing
+                    if self.output_file and os.path.exists(self.output_file) and os.path.getsize(self.output_file) > 1000:
                         print(f"🎥 Clip saved: {self.output_file}")
                     else:
-                        print("❌ Clip was not saved properly. Check FFmpeg logs.")
-            else:
-                print("⚠️ FFmpeg process already stopped.")
-                self.ffmpeg_process = None  # Set to None if it's already stopped
+                        print("❌ Clip was not saved properly.")
         else:
             print("⚠️ No active FFmpeg process found.")
 
 
+
     def run(self):
         width, height = map(int, self.resolution.split("x"))
-
+        
         try:
             print(f"FFmpeg path is: {self.ffmpeg_path}")
 
@@ -136,9 +128,9 @@ class CaptureThread(threading.Thread):
 
 
         if self.mode == "clip":
-            # Fixed 30-second clip capture
             timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
             output_file = os.path.join(self.output_dir, f"clip_{timestamp}.mp4")
+            # Fixed 30-second clip capture
             print(f"📸 Capturing last 30 seconds... Saving to {output_file}")
 
             # Construct the FFmpeg command manually
@@ -176,36 +168,11 @@ class CaptureThread(threading.Thread):
                 print(f"❌ Error capturing clip: {e}")
 
 
-        # if self.mode == "clip":
-        #     # Fixed 30-second clip capture
-        #     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-        #     output_file = os.path.join(self.output_dir, f"clip_{timestamp}.mp4")
-        #     print(f"📸 Capturing last 30 seconds... Saving to {output_file}")
-
-        #     try:
-        #         (
-        #             ffmpeg
-        #             .input("desktop", format="gdigrab", framerate=self.fps)
-        #             .output(
-        #                 output_file,
-        #                 vcodec=self.encoder,
-        #                 preset=self.preset,
-        #                 crf=18,
-        #                 t=30,  # 30-second clip
-        #                 ss=3,  # Optionally skip the first 3 seconds
-        #                 s=f"{width}x{height}",
-        #             )
-        #             .global_args("-nostdin")
-        #             .run(overwrite_output=True)
-        #         )
-        #         print(f"✅ Clip saved: {output_file}")
-        #     except Exception as e:
-        #         print(f"❌ Error capturing clip: {e}")
-
+        
         elif self.mode == "manual":
-            # Continuous recording until stopped
             timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-            self.output_file = os.path.join(self.output_dir, f"record_{timestamp}.mp4")
+            self.output_file = os.path.join(self.output_dir, f"recording_{timestamp}.mp4")
+            # Continuous recording until stopped
             print(f"📸 Starting manual recording... Saving to {self.output_file}")
 
             command = [
@@ -231,17 +198,21 @@ class CaptureThread(threading.Thread):
                 "-s", f"{width}x{height}",
                 "-c:a", "libmp3lame",
                 "-b:a", "192k",
-                "-tune", "zerolatency",
                 "-probesize", "32",
                 "-analyzeduration", "0",
                 "-fflags", "nobuffer",
                 "-rtbufsize", "0M",
                 "-movflags", "+faststart",  # ✅ Helps with instant playback in browsers
-                self.output_file
+                
             ]
+            
+            if self.encoder == "libx264":
+                command.extend(["-tune", "zerolatency"])
 
-            # **🔍 Debugging: Print the actual command Python is running**
-            print(f"🔍 Running FFmpeg Command: {' '.join(command)}")
+
+            command.append(self.output_file)
+
+            
 
             try:
                 self.ffmpeg_process = subprocess.Popen(
@@ -251,6 +222,10 @@ class CaptureThread(threading.Thread):
                     stderr=subprocess.PIPE,
                     text=True  # ✅ Ensures proper string decoding
                 )
+                
+                print("🔍 FFmpeg Process Started... Waiting for output...")
+                for line in self.ffmpeg_process.stderr:
+                    print(f"FFmpeg: {line.strip()}")
 
                 # ✅ Loop to check if stop_event is set
                 while not self.stop_event.is_set():

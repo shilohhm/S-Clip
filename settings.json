@@ -1,9 +1,9 @@
 {
-    "resolution": "1920x1080",
-    "fps": 60,
-    "encoder": "libx264",
-    "preset": "ultrafast",
+    "resolution": "2560x1440",
+    "fps": 120,
+    "encoder": "h264_nvenc",
+    "preset": "hq",
     "hotkey": "F5",
-    "audio_device": "audio-default",
+    "audio_device": "Analogue 1 + 2 (Focusrite USB Audio)",
     "replay_buffer": true
 }
