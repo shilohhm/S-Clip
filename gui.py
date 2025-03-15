@@ -22,6 +22,7 @@ class ClippingApp(QMainWindow):
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setFont(QFont("Segoe UI", 16))
         self.status_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
         
 
 
@@ -94,6 +95,25 @@ class ClippingApp(QMainWindow):
         self.add_replay_buffer_checkbox(main_layout)
 
         main_layout.addWidget(self.status_label)
+        main_layout.addLayout(settings_layout)
+
+        # Monitor selection
+        monitor_layout = QVBoxLayout()
+        monitor_label = QLabel("Select Monitor:")
+        self.monitor_combo = QComboBox()
+        monitors = CaptureThread.list_monitors()
+
+        # Populate dropdown with available monitors
+        for monitor in monitors.keys():
+            self.monitor_combo.addItem(monitor)
+
+        monitor_layout.addWidget(monitor_label)
+        monitor_layout.addWidget(self.monitor_combo)
+        settings_layout.addLayout(monitor_layout)
+
+        # Load saved monitor setting (default to first monitor)
+        self.monitor_combo.setCurrentText(self.settings.get("monitor", "Monitor 1"))
+
 
 
 
@@ -127,7 +147,9 @@ class ClippingApp(QMainWindow):
             "preset": preset_value,
             "hotkey": hotkey_value,
             "audio_device": audio_device_value,
-            "replay_buffer": replay_buffer_value
+            "replay_buffer": replay_buffer_value,
+            "monitor": self.monitor_combo.currentText(),
+
         }
 
         # Call the save_settings function from settings.py to save the settings to a JSON file
@@ -299,7 +321,8 @@ class ClippingApp(QMainWindow):
             preset=self.preset.currentText(),
             mode="manual",
             audio_input=f"audio={self.audio_input_combo.currentText()}",  # SOUND
-            audio_output=f"audio={self.audio_output_combo.currentText()}"  # SOUND
+            audio_output=f"audio={self.audio_output_combo.currentText()}",  # SOUND
+            monitor=self.monitor_combo.currentText()
         )
         self.capture_thread.start()
         self.update_status("🔴 Recording started!")
@@ -332,7 +355,8 @@ class ClippingApp(QMainWindow):
                 preset=self.preset.currentText(),
                 mode="clip",
                 audio_input=f"audio={self.audio_input_combo.currentText()}",  # Pass audio input
-                audio_output=f"audio={self.audio_output_combo.currentText()}"  # Pass audio output
+                audio_output=f"audio={self.audio_output_combo.currentText()}",  # Pass audio output
+                monitor=self.monitor_combo.currentText()
             )
             clip_thread.start()
             self.update_status("Clip captured.")

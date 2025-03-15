@@ -6,11 +6,13 @@ import subprocess
 import re
 from ffmpeg_utils import get_ffmpeg_path
 import platform
+from screeninfo import get_monitors
+
 
 
 
 class CaptureThread(threading.Thread):
-    def __init__(self, resolution, fps, encoder, preset, mode,audio_input,audio_output):
+    def __init__(self, resolution, fps, encoder, preset, mode,audio_input,audio_output,monitor):
         """
         mode: "clip" for a one-shot 30-second clip,
               "manual" for continuous recording (stopped manually).
@@ -24,8 +26,10 @@ class CaptureThread(threading.Thread):
         self.encoder = encoder
         self.preset = preset
         self.mode = mode
+        self.monitor = monitor
         self.ffmpeg_path = get_ffmpeg_path()
         self.ffmpeg_process = None  # For manual recording mode
+        
 
 
         self.audio_input = audio_input if audio_input else self.get_default_audio_device()
@@ -37,8 +41,22 @@ class CaptureThread(threading.Thread):
 
     
 
+    @staticmethod
+    def list_monitors():
+        """Detect available monitors and their coordinates."""
+        monitors = get_monitors()
+        monitor_list = {}
 
-        
+        for i, m in enumerate(monitors):
+            monitor_list[f"Monitor {i+1}"] = {
+                "x": m.x,
+                "y": m.y,
+                "width": m.width,
+                "height": m.height,
+            }
+
+        return monitor_list
+            
                 
 
     @staticmethod
@@ -131,6 +149,16 @@ class CaptureThread(threading.Thread):
             print(f"❌ Error detecting audio devices: {e}")
 
 
+        selected_monitor = self.monitor  # Monitor name (e.g., "Monitor 1")
+        monitor_info = CaptureThread.list_monitors().get(selected_monitor, None)
+
+        if not monitor_info:
+            print(f"⚠️ Selected monitor {selected_monitor} not found! Defaulting to full screen.")
+            monitor_x, monitor_y, width, height = 0, 0, self.resolution.split("x")
+        else:
+            monitor_x, monitor_y = monitor_info["x"], monitor_info["y"]
+            width, height = monitor_info["width"], monitor_info["height"]
+
         if self.mode == "clip":
             timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
             output_file = os.path.join(self.output_dir, f"clip_{timestamp}.mp4")
@@ -143,6 +171,9 @@ class CaptureThread(threading.Thread):
                 "-y",  # Overwrite existing files if needed
                 "-f", "gdigrab",  # Capture desktop screen
                 "-framerate", str(self.fps),  # Set FPS
+                "-offset_x", str(monitor_x),  # Start capture at the monitor's x position
+                "-offset_y", str(monitor_y),  # Start capture at the monitor's y position
+                "-video_size", f"{width}x{height}",  # Capture only this monitor
                 "-i", "desktop",  # Input source (screen capture)
                 "-f", "dshow",  # Audio input format
                 "-i", f"audio={audio_device}",  # Audio device from GUI
@@ -186,6 +217,9 @@ class CaptureThread(threading.Thread):
                 # Capture screen
                 "-f", "gdigrab",
                 "-framerate", str(self.fps),
+                "-offset_x", str(monitor_x),  # Start capture at the monitor's x position
+                "-offset_y", str(monitor_y),  # Start capture at the monitor's y position
+                "-video_size", f"{width}x{height}",  # Capture only this monitor
                 "-i", "desktop",
 
                 # Audio Input (Microphone)
