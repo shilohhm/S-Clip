@@ -18,6 +18,7 @@ class CaptureThread(threading.Thread):
         super().__init__()
         self.output_dir = os.path.join(os.path.dirname(__file__), "clips")
         os.makedirs(self.output_dir, exist_ok=True)
+
         self.resolution = resolution
         self.fps = fps
         self.encoder = encoder
@@ -30,6 +31,9 @@ class CaptureThread(threading.Thread):
         self.audio_input = audio_input if audio_input else self.get_default_audio_device()
         self.audio_output = audio_output if audio_output else "audio=virtual-audio-capturer" #SOUND
         self.stop_event = threading.Event()
+        
+        
+
 
     
 
@@ -203,6 +207,7 @@ class CaptureThread(threading.Thread):
                 "-fflags", "nobuffer",
                 "-rtbufsize", "0M",
                 "-movflags", "+faststart",  # ✅ Helps with instant playback in browsers
+                self.output_file
                 
             ]
             
@@ -210,7 +215,7 @@ class CaptureThread(threading.Thread):
                 command.extend(["-tune", "zerolatency"])
 
 
-            command.append(self.output_file)
+           
 
             
 
