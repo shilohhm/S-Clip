@@ -15,6 +15,8 @@ class ClippingApp(QMainWindow):
         self.setWindowIcon(QIcon("sclip_icon.png"))  # Ensure your icon file is in the project folder or adjust the path.
         self.setGeometry(100, 100, 1000, 700)  # Larger window size
         
+        self.settings = settings.load_settings()
+
         # Status label for feedback
         self.status_label = QLabel("Status")
         self.status_label.setAlignment(Qt.AlignCenter)
@@ -26,7 +28,7 @@ class ClippingApp(QMainWindow):
         self.load_styles()
        
 
-        self.settings = settings.load_settings()
+        
         self.replay_buffer_checkbox = QCheckBox("Replay Buffer")
         self.replay_buffer_checkbox.stateChanged.connect(self.toggle_replay_buffer)
 
@@ -73,6 +75,14 @@ class ClippingApp(QMainWindow):
         self.add_encoder_field(settings_layout)
         self.add_preset_field(settings_layout)
         self.add_hotkey_field(settings_layout)
+                
+        # Set values for the fields after they're added
+        self.resolution_edit.setText(self.settings["resolution"])  # Set the loaded value
+        self.fps_spin.setValue(self.settings["fps"])  # Set the loaded value
+        self.encoder.setCurrentText(self.settings["encoder"])  # Set the loaded value
+        self.preset.setCurrentText(self.settings["preset"])  # Set the loaded value
+        self.hotkey_edit.setText(self.settings["hotkey"])  # Set the loaded value
+
 
         # Buttons layout
         self.add_buttons(main_layout)
@@ -99,33 +109,56 @@ class ClippingApp(QMainWindow):
         else:
             print("QSS file didn't load!")
 
+    def save_settings(self):
+        # Retrieve updated values from the GUI elements (QLineEdit, QComboBox, etc.)
+        resolution_value = self.resolution_edit.text().strip()
+        fps_value = self.fps_spin.value()
+        encoder_value = self.encoder.currentText()
+        preset_value = self.preset.currentText()
+        hotkey_value = self.hotkey_edit.text().strip()
+        audio_device_value = self.audio_input_combo.currentText()
+        replay_buffer_value = self.replay_buffer_checkbox.isChecked()
 
-    # Modular method for adding resolution
+        # Create a settings dictionary with updated values
+        settings_dict = {
+            "resolution": resolution_value,
+            "fps": fps_value,
+            "encoder": encoder_value,
+            "preset": preset_value,
+            "hotkey": hotkey_value,
+            "audio_device": audio_device_value,
+            "replay_buffer": replay_buffer_value
+        }
+
+        # Call the save_settings function from settings.py to save the settings to a JSON file
+        settings.save_settings(settings_dict)
+
+        # Optionally, show a status message to the user
+        self.update_status("Settings saved!")
+
+
+
     def add_resolution_field(self, settings_layout):
         # This method is to add the resolution field to the layout.
         res_layout = QVBoxLayout()
         res_label = QLabel("Resolution (WxH):")
-        self.resolution_edit = QLineEdit("1920x1080")
+        self.resolution_edit = QLineEdit()  # Just create the field
         self.resolution_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         res_layout.addWidget(res_label)
         res_layout.addWidget(self.resolution_edit)
         settings_layout.addLayout(res_layout)
 
-
-    # FPS method
     def add_fps_field(self, layout):
         fps_layout = QVBoxLayout()
         fps_label = QLabel("FPS:")
         self.fps_spin = QSpinBox()
         self.fps_spin.setRange(1, 240)
-        self.fps_spin.setValue(30)
+        self.fps_spin.setValue(30)  # Default value
         self.fps_spin.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         fps_layout.addWidget(fps_label)
         fps_layout.addWidget(self.fps_spin)
         layout.addLayout(fps_layout)
 
-    # Encoder method
-# Encoder method
     def add_encoder_field(self, layout):
         enc_layout = QVBoxLayout()
         enc_label = QLabel("Encoder:")
@@ -140,7 +173,6 @@ class ClippingApp(QMainWindow):
         enc_layout.addWidget(self.encoder)
         layout.addLayout(enc_layout)
 
-    # Preset method
     def add_preset_field(self, layout):
         preset_layout = QVBoxLayout()
         preset_label = QLabel("Preset:")
@@ -151,29 +183,34 @@ class ClippingApp(QMainWindow):
         preset_layout.addWidget(self.preset)
         layout.addLayout(preset_layout)
 
+    def update_presets(self):
+        current_encoder = self.encoder.currentText()
+        self.preset.clear()  # Clear the current items
+        # Add the presets based on the selected encoder
+        self.preset.addItems(self.encoder_presets.get(current_encoder, []))
 
-
-    #Hotkey Method
     def add_hotkey_field(self, layout):
-            hotkey_layout = QVBoxLayout()
-            hotkey_label = QLabel("Hotkey:")
-            self.hotkey_edit = QLineEdit(self.settings["hotkey"])
-            hotkey_layout.addWidget(hotkey_label)
-            hotkey_layout.addWidget(self.hotkey_edit)
-            layout.addLayout(hotkey_layout)
+        hotkey_layout = QVBoxLayout()
+        hotkey_label = QLabel("Hotkey:")
+        self.hotkey_edit = QLineEdit()  # Just create the field
+        hotkey_layout.addWidget(hotkey_label)
+        hotkey_layout.addWidget(self.hotkey_edit)
+        layout.addLayout(hotkey_layout)
 
 
 
-    # Adding buttons for actions
-    # Adding buttons for actions
+   
+    # Adding buttons for actions    
     def add_buttons(self, main_layout):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(30)
 
+        # Save Settings Button
         save_button = QPushButton("Save Settings")
-        save_button.clicked.connect(lambda: settings.save_settings(self.settings))  # Use settings.save_settings
+        save_button.clicked.connect(self.save_settings)  # Connect to save_settings method
         buttons_layout.addWidget(save_button)
 
+        # Other buttons (Start Recording, Stop Recording, etc.)
         record_button = QPushButton("Start Recording")
         record_button.clicked.connect(self.start_recording)
         buttons_layout.addWidget(record_button)
@@ -230,6 +267,8 @@ class ClippingApp(QMainWindow):
 
 
 
+
+
 # Method to update the presets based on the selected encoder
     def update_presets(self):
         current_encoder = self.encoder.currentText()
@@ -251,10 +290,12 @@ class ClippingApp(QMainWindow):
             print("⚠️ Already recording!")
             return
 
+        settings = self.settings
+
         self.capture_thread = CaptureThread(
             self.resolution_edit.text().strip(),
             self.fps_spin.value(),
-            self.encoder.currentText(),
+            settings["encoder"],
             preset=self.preset.currentText(),
             mode="manual",
             audio_input=f"audio={self.audio_input_combo.currentText()}",  # SOUND

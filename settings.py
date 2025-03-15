@@ -4,25 +4,30 @@ import os
 def load_settings():
     """Load settings from a JSON file."""
     settings_file = "settings.json"
+    
+    # Check if the settings file exists
     if os.path.exists(settings_file):
+        # If it exists, load the settings from the file
         with open(settings_file, "r") as f:
-            return json.load(f)
-    else:
-        return create_default_settings_file()  # Create default settings if the file doesn't exist
+            settings = json.load(f)
 
-def create_default_settings_file():
-    """Create a default settings file."""
-    default_settings = {
-        "resolution": "1920x1080",
-        "fps": 60,
-        "encoder": "libx264",
-        "preset": "ultrafast",
-        "hotkey": "F5",
-        "audio_device": "audio-default",
-        "replay_buffer": False
-    }
-    save_settings(default_settings)
-    return default_settings
+            # Ensure that preset and encoder are always strings (not lists)
+            settings["preset"] = str(settings.get("preset", "ultrafast"))  # Default to "ultrafast"
+            settings["encoder"] = str(settings.get("encoder", "libx264"))  # Default to "libx264"
+
+            return settings
+    else:
+        # If not, just return an empty dictionary or log an error
+        print("Settings file not found. Using default settings.")
+        return {
+            "resolution": "1920x1080",
+            "fps": 60,
+            "encoder": "libx264",
+            "preset": "ultrafast",
+            "hotkey": "F5",
+            "audio_device": "audio-default",
+            "replay_buffer": False
+        }
 
 def save_settings(settings):
     """Save settings to a JSON file."""
