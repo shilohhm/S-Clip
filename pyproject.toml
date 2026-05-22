@@ -1,0 +1,117 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sclip"
+version = "2.0.0"
+description = "A lightweight Windows screen recorder with a true rolling replay buffer."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "S-Clip Contributors" }]
+keywords = ["screen-recorder", "replay-buffer", "ffmpeg", "windows", "clip"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video :: Capture",
+]
+dependencies = [
+    "PySide6>=6.6",
+    "pynput>=1.7.6",
+    "screeninfo>=0.8.1",
+    "platformdirs>=4.2",
+    # Windows-only: WASAPI loopback capture for desktop/game audio. The app
+    # degrades gracefully (microphone-only) if it is missing.
+    "PyAudioWPatch>=0.2.12 ; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+sclip = "sclip.app:main"
+
+[project.gui-scripts]
+sclip-gui = "sclip.app:main"
+
+[project.urls]
+Homepage = "https://github.com/shilohhm/S-Clip"
+Source = "https://github.com/shilohhm/S-Clip"
+Issues = "https://github.com/shilohhm/S-Clip/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sclip"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/sclip/ui/assets" = "sclip/ui/assets"
+"src/sclip/ui/styles.qss" = "sclip/ui/styles.qss"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "PL",  # pylint
+    "RUF", # ruff-specific
+]
+ignore = [
+    "PLR0913", # too many arguments — common in Qt widget constructors
+    "PLR2004", # magic value comparisons — readable in UI code
+    "PLC0415", # import-outside-top-level — project uses intentional lazy imports
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+[[tool.mypy.overrides]]
+module = ["pynput.*", "screeninfo.*", "pyaudiowpatch.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "slow: marks tests as slow (deselect with -m 'not slow')",
+    "ffmpeg: requires ffmpeg binary on PATH",
+]

@@ -1,9 +1,0 @@
-{
-    "resolution": "2560x1440",
-    "fps": 120,
-    "encoder": "h264_nvenc",
-    "preset": "llhq",
-    "audio_device": "Analogue 1 + 2 (Focusrite USB Audio)",
-    "replay_buffer": true,
-    "monitor": "Monitor 1"
-}
