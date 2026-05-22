@@ -1,0 +1,26 @@
+{
+  "audio_input": "",
+  "audio_output": "",
+  "capture_audio": true,
+  "clip_hotkey": {
+    "alt": false,
+    "ctrl": false,
+    "key": "F5",
+    "shift": false
+  },
+  "crf": 20,
+  "encoder": "libx264",
+  "fps": 60,
+  "monitor": "Monitor 1",
+  "output_dir": "",
+  "preset": "veryfast",
+  "record_hotkey": {
+    "alt": false,
+    "ctrl": true,
+    "key": "F6",
+    "shift": false
+  },
+  "replay_buffer": true,
+  "replay_seconds": 30,
+  "resolution": "1920x1080"
+}
