@@ -410,9 +410,8 @@ class _DisabledCaptureEngine:
     def stop_replay_buffer(self) -> None:
         pass
 
-    def save_replay_clip(self) -> Path | None:
+    def save_replay_clip(self) -> None:
         logger.error("Capture engine unavailable; cannot save replay clip")
-        return None
 
     def shutdown(self) -> None:
         pass
