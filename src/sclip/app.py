@@ -30,9 +30,12 @@ from sclip.logging_config import configure_logging
 from sclip.paths import app_paths
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from sclip.contracts import (
         AudioDevice,
         CaptureEngine,
+        CaptureState,
         DeviceRegistry,
         Monitor,
         Settings,
@@ -385,7 +388,9 @@ class _DisabledCaptureEngine:
     """Engine stub that reports an error state and refuses to record.
 
     All methods are no-ops; this keeps the GUI navigable when FFmpeg is
-    missing or the capture engine module has not landed yet.
+    missing or the capture engine module has not landed yet. The listener
+    registration methods accept callbacks and quietly drop them — this stub
+    never emits an event, so there is nothing for a listener to observe.
     """
 
     def __init__(self) -> None:
@@ -410,6 +415,15 @@ class _DisabledCaptureEngine:
         return None
 
     def shutdown(self) -> None:
+        pass
+
+    def add_state_listener(self, listener: Callable[[CaptureState], None]) -> None:
+        pass
+
+    def add_clip_listener(self, listener: Callable[[Path], None]) -> None:
+        pass
+
+    def add_error_listener(self, listener: Callable[[str], None]) -> None:
         pass
 
 

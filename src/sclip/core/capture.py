@@ -66,9 +66,14 @@ class FFmpegCaptureEngine:
         self._lock = threading.RLock()
 
         self.state: CaptureState = CaptureState.IDLE
-        self.on_state_change: StateCallback | None = None
-        self.on_clip_saved: ClipCallback | None = None
-        self.on_error: ErrorCallback | None = None
+
+        # Each event type fans out to a list of listeners rather than a single
+        # callback slot, so the capture page and the main window can both
+        # observe the engine. A bad listener is isolated by the try/except in
+        # the notifier methods, so one cannot break the others.
+        self._state_listeners: list[StateCallback] = []
+        self._clip_listeners: list[ClipCallback] = []
+        self._error_listeners: list[ErrorCallback] = []
 
         self._manual_process: subprocess.Popen[str] | None = None
         self._manual_context: AbstractContextManager[subprocess.Popen[str]] | None = None
@@ -80,6 +85,33 @@ class FFmpegCaptureEngine:
         # One pump, reused for every capture. It is started just before an
         # FFmpeg process and stopped once that process ends.
         self._pump = DesktopAudioPump()
+
+    # --- listener registration -----------------------------------------------
+
+    def add_state_listener(self, listener: StateCallback) -> None:
+        """Register a callback notified whenever the capture state changes.
+
+        The callback receives the new :class:`CaptureState`. It may be invoked
+        from a worker thread, so a Qt-based listener must marshal back onto the
+        GUI thread itself.
+        """
+        self._state_listeners.append(listener)
+
+    def add_clip_listener(self, listener: ClipCallback) -> None:
+        """Register a callback notified when a clip has been written to disk.
+
+        The callback receives the saved clip's :class:`~pathlib.Path`. As with
+        the other listeners it can fire on a worker thread.
+        """
+        self._clip_listeners.append(listener)
+
+    def add_error_listener(self, listener: ErrorCallback) -> None:
+        """Register a callback notified when the engine reports an error.
+
+        The callback receives a human-readable message. It can fire on a
+        worker thread, the same as the other listeners.
+        """
+        self._error_listeners.append(listener)
 
     # --- manual recording ----------------------------------------------------
 
@@ -405,31 +437,42 @@ class FFmpegCaptureEngine:
     # --- callbacks -----------------------------------------------------------
 
     def _set_state(self, state: CaptureState) -> None:
+        """Record the new state and notify every state listener.
+
+        Each listener is invoked inside its own ``try/except`` so a listener
+        that raises — including one called from a worker thread — cannot stop
+        the others from running or escape into the caller.
+        """
         self.state = state
-        callback = self.on_state_change
-        if callback is not None:
+        for listener in list(self._state_listeners):
             try:
-                callback(state)
+                listener(state)
             except Exception:
-                logger.exception("State-change callback failed")
+                logger.exception("State-change listener failed")
 
     def _emit_clip_saved(self, path: Path) -> None:
-        callback = self.on_clip_saved
-        if callback is not None:
+        """Notify every clip listener that a clip has been written.
+
+        Listener failures are isolated exactly as in :meth:`_set_state`.
+        """
+        for listener in list(self._clip_listeners):
             try:
-                callback(path)
+                listener(path)
             except Exception:
-                logger.exception("Clip-saved callback failed")
+                logger.exception("Clip-saved listener failed")
 
     def _handle_error(self, message: str) -> None:
+        """Move to the error state and notify every error listener.
+
+        Listener failures are isolated exactly as in :meth:`_set_state`.
+        """
         logger.error(message)
         self._set_state(CaptureState.ERROR)
-        callback = self.on_error
-        if callback is not None:
+        for listener in list(self._error_listeners):
             try:
-                callback(message)
+                listener(message)
             except Exception:
-                logger.exception("Error callback failed")
+                logger.exception("Error listener failed")
 
 
 __all__ = ["FFmpegCaptureEngine"]
