@@ -9,11 +9,11 @@ The page is a passive view. It never writes settings; it only reads the
 current :class:`Settings` to fill the summary card, and emits
 ``request_navigate`` when it wants the host window to switch screens.
 
-Threading note: the capture engine exposes its updates as plain callback
-attributes (``on_state_change``, ``on_clip_saved``, ``on_error``) and those
-callbacks may fire on a worker thread. We never touch a widget from inside
-them — each callback emits a :class:`Signal` defined here, and Qt marshals the
-slot back onto the GUI thread.
+Threading note: the capture engine publishes its updates to listeners
+registered through ``add_state_listener``, ``add_clip_listener`` and
+``add_error_listener``, and those listeners may fire on a worker thread. We
+never touch a widget from inside them — each listener emits a :class:`Signal`
+defined here, and Qt marshals the slot back onto the GUI thread.
 """
 
 from __future__ import annotations
@@ -418,22 +418,16 @@ class CapturePage(QWidget):
         self._engine_error.connect(self._on_engine_error)
 
     def _wire_engine_callbacks(self) -> None:
-        """Point the engine's callback attributes at our bridge signals.
+        """Register this page's bridge signals as engine listeners.
 
-        ``CaptureEngine`` is a Protocol, so these attributes are not strictly
-        part of the contract — we assign defensively so an engine under test
-        that rejects the assignment cannot crash the page.
+        The engine fans each event out to every registered listener, so the
+        page coexists with the main window's own subscriptions. The listeners
+        may fire on a worker thread; each one only emits a :class:`Signal`, and
+        Qt marshals the connected slot back onto the GUI thread.
         """
-        bridges = (
-            ("on_state_change", self._engine_state_changed.emit),
-            ("on_clip_saved", self._engine_clip_saved.emit),
-            ("on_error", self._engine_error.emit),
-        )
-        for name, emitter in bridges:
-            try:
-                setattr(self._engine, name, emitter)
-            except (AttributeError, TypeError):
-                logger.debug("Engine does not accept %s assignment", name)
+        self._engine.add_state_listener(self._engine_state_changed.emit)
+        self._engine.add_clip_listener(self._engine_clip_saved.emit)
+        self._engine.add_error_listener(self._engine_error.emit)
 
     # --------------------------------------------------------- Slots
 

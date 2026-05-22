@@ -8,6 +8,7 @@ long as the published shape does not change.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -196,6 +197,13 @@ class CaptureEngine(Protocol):
     Concrete implementations live in :mod:`sclip.core.capture`. The protocol
     keeps the GUI free of FFmpeg knowledge and makes the engine swappable for
     a fake during tests.
+
+    Observers register through the ``add_*_listener`` methods. The engine
+    supports any number of listeners per event, so several parts of the GUI
+    (the capture page, the main window, the tray) can each react to a state
+    change, a saved clip or an error without contending for a single slot.
+    Listener callbacks may fire on a worker thread — the GUI marshals them
+    back onto the Qt thread itself.
     """
 
     state: CaptureState
@@ -211,6 +219,12 @@ class CaptureEngine(Protocol):
     def save_replay_clip(self) -> Path | None: ...
 
     def shutdown(self) -> None: ...
+
+    def add_state_listener(self, listener: Callable[[CaptureState], None]) -> None: ...
+
+    def add_clip_listener(self, listener: Callable[[Path], None]) -> None: ...
+
+    def add_error_listener(self, listener: Callable[[str], None]) -> None: ...
 
 
 @runtime_checkable
