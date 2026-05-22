@@ -57,10 +57,29 @@ _MANUAL_KEYFRAME_SECONDS = 2
 _BACKEND_ORDER: tuple[VideoBackend, ...] = (VideoBackend.DDAGRAB, VideoBackend.GDIGRAB)
 
 
+# How long ``shutdown()`` waits for an in-flight clip-save worker to finish
+# before giving up on it. A stitch normally completes in a few seconds; this
+# ceiling is generous enough to let a long buffer finish writing while still
+# bounding how long quitting the app can hang.
+_SAVE_JOIN_TIMEOUT = 30.0
+
+
 class FFmpegCaptureEngine:
     """Capture engine used by the desktop application."""
 
-    def __init__(self, settings_store: SettingsStore, device_registry: DeviceRegistry) -> None:
+    def __init__(
+        self,
+        settings_store: SettingsStore,
+        device_registry: DeviceRegistry,
+        *,
+        buffer_factory: Callable[[Path], RollingBuffer] = RollingBuffer,
+    ) -> None:
+        """Wire the engine to its settings store and device registry.
+
+        ``buffer_factory`` builds the :class:`RollingBuffer` the engine owns;
+        it defaults to the real class and exists so a test can substitute a
+        fake buffer whose stitch is instant and FFmpeg-free.
+        """
         self._settings_store = settings_store
         self._device_registry = device_registry
         self._lock = threading.RLock()
@@ -79,7 +98,12 @@ class FFmpegCaptureEngine:
         self._manual_context: AbstractContextManager[subprocess.Popen[str]] | None = None
         self._manual_output: Path | None = None
 
-        self._buffer = RollingBuffer(app_paths().replay_buffer_dir)
+        # The clip-save stitch runs on a daemon worker thread so it never
+        # blocks the GUI. At most one save runs at a time; this handle lets
+        # ``shutdown()`` join a save that is still in flight.
+        self._save_thread: threading.Thread | None = None
+
+        self._buffer = buffer_factory(app_paths().replay_buffer_dir)
         self._buffer.set_error_handler(self._handle_error)
 
         # One pump, reused for every capture. It is started just before an
@@ -181,34 +205,67 @@ class FFmpegCaptureEngine:
             if self.state is CaptureState.BUFFERING:
                 self._set_state(CaptureState.IDLE)
 
-    def save_replay_clip(self) -> Path | None:
-        """Save the current rolling-buffer window as an MP4.
+    def save_replay_clip(self) -> None:
+        """Save the current rolling-buffer window as an MP4, off the GUI thread.
 
-        The rolling buffer (and its desktop-audio pump) keep running — only a
-        short-lived stitch process is spawned — so the user misses nothing
-        while the clip is written.
+        The stitch is a full FFmpeg re-encode that can take seconds (minutes
+        for a long buffer), so it runs on a daemon worker thread and this
+        method returns immediately. The rolling buffer (and its desktop-audio
+        pump) keep running throughout, so the user misses nothing while the
+        clip is written.
+
+        Calling this while a save is already in flight is a no-op — the engine
+        is in the ``SAVING`` state and a second worker would race the first
+        for the same segments. The completed clip is announced through the
+        registered clip listeners; a failed stitch through the error listeners.
         """
         with self._lock:
             if self.state is not CaptureState.BUFFERING:
-                return None
+                # Either the buffer is not armed, or a save is already running
+                # (state SAVING). In both cases there is nothing to start.
+                return
             settings = self._settings_store.load()
             destination = self._clip_path("clip", settings)
             self._set_state(CaptureState.SAVING)
+            thread = threading.Thread(
+                target=self._run_save_clip,
+                args=(destination,),
+                name="sclip-clip-save",
+                daemon=True,
+            )
+            self._save_thread = thread
+            thread.start()
 
+    def _run_save_clip(self, destination: Path) -> None:
+        """Worker-thread body for :meth:`save_replay_clip`.
+
+        Runs the blocking stitch, then restores the engine state under the
+        lock (back to ``BUFFERING`` while the buffer rolls, or ``IDLE`` if it
+        has since stopped). The clip/error notification happens *outside* the
+        lock so a listener cannot deadlock against an engine call it makes in
+        response, and so a long fan-out does not hold up other threads.
+        """
+        saved: Path | None = None
         try:
             saved = self._buffer.save_clip(destination)
         finally:
             with self._lock:
                 if self._buffer.is_running:
                     self._set_state(CaptureState.BUFFERING)
-                # mypy narrows self.state to BUFFERING after the early return
-                # above and cannot see that _set_state() reassigned it.
-                elif self.state is CaptureState.SAVING:  # type: ignore[comparison-overlap]
+                # Only fall back to IDLE if nothing else moved the engine on
+                # (an error handler may have switched it to ERROR meanwhile).
+                elif self.state is CaptureState.SAVING:
                     self._set_state(CaptureState.IDLE)
 
         if saved is not None:
             self._emit_clip_saved(saved)
-        return saved
+        else:
+            # save_clip returns None when the buffer had no segments to
+            # stitch, or when the stitch itself failed. Reporting it here
+            # (after the finally block above has otherwise restored BUFFERING)
+            # ensures the error state and message actually reach the listeners
+            # rather than being overwritten by the state restore.
+            self._handle_error("Could not save the replay clip.")
 
     def reload_settings(self) -> None:
         """Restart the replay buffer if settings changed while it was running."""
@@ -222,17 +279,44 @@ class FFmpegCaptureEngine:
             self._set_state(CaptureState.BUFFERING)
 
     def shutdown(self) -> None:
-        """Stop any live FFmpeg process owned by the engine."""
+        """Stop any live FFmpeg process owned by the engine.
+
+        A clip save running on the worker thread is given a bounded chance to
+        finish first: it is reading segment files that ``self._buffer.stop()``
+        would otherwise purge out from under it. The join is time-limited so a
+        wedged stitch cannot block the application from quitting.
+        """
         try:
             self.stop_manual_recording()
         except Exception:
             logger.exception("Manual recording shutdown failed")
+        self._join_save_thread()
         try:
             self._buffer.stop()
         except Exception:
             logger.exception("Replay buffer shutdown failed")
         self._stop_desktop_pump()
         self._set_state(CaptureState.IDLE)
+
+    def _join_save_thread(self) -> None:
+        """Wait for an in-flight clip-save worker to finish, within a timeout.
+
+        Called during shutdown. A save normally completes in seconds; the
+        timeout bounds the wait so a stuck stitch cannot wedge application
+        exit. If the worker is still alive after the timeout we log and move
+        on — it is a daemon thread, so it dies with the process.
+        """
+        with self._lock:
+            thread = self._save_thread
+        if thread is None or not thread.is_alive():
+            return
+        logger.info("Waiting for the in-flight clip save to finish")
+        thread.join(timeout=_SAVE_JOIN_TIMEOUT)
+        if thread.is_alive():
+            logger.warning(
+                "Clip save did not finish within %.0fs of shutdown; abandoning it",
+                _SAVE_JOIN_TIMEOUT,
+            )
 
     # --- desktop-audio pump --------------------------------------------------
 

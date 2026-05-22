@@ -68,6 +68,13 @@ class MainWindow(QMainWindow):
     _hotkey_clip_requested = Signal()
     _hotkey_record_requested = Signal()
 
+    # Signals fired from the capture engine's listener callbacks, which run on
+    # the engine's clip-save worker thread. They are bridged onto the GUI
+    # thread exactly like the hotkey signals above, so the tray balloon is
+    # only ever touched from the Qt thread.
+    _engine_clip_saved = Signal(object)
+    _engine_error = Signal(str)
+
     def __init__(
         self,
         engine: CaptureEngine,
@@ -115,6 +122,7 @@ class MainWindow(QMainWindow):
         self._build_tray()
 
         self._connect_hotkey_signals()
+        self._connect_engine_signals()
         self._register_settings_hotkeys(self._current_settings)
 
     # -- construction helpers ----------------------------------------------
@@ -404,6 +412,24 @@ class MainWindow(QMainWindow):
             self._on_record_requested, Qt.ConnectionType.QueuedConnection
         )
 
+    def _connect_engine_signals(self) -> None:
+        """Subscribe to the capture engine and bridge its events to the GUI.
+
+        The engine's clip-save now runs on a worker thread, so the
+        ``add_clip_listener`` / ``add_error_listener`` callbacks fire off the
+        GUI thread. Each callback only emits a :class:`Signal`; the
+        ``QueuedConnection`` then hands the slot to the Qt thread, where it is
+        safe to show a tray balloon. This mirrors the hotkey bridge above.
+        """
+        self._engine_clip_saved.connect(
+            self._on_engine_clip_saved, Qt.ConnectionType.QueuedConnection
+        )
+        self._engine_error.connect(
+            self._on_engine_error, Qt.ConnectionType.QueuedConnection
+        )
+        self._engine.add_clip_listener(self._engine_clip_saved.emit)
+        self._engine.add_error_listener(self._engine_error.emit)
+
     def _register_settings_hotkeys(self, settings: Settings) -> None:
         """Install (or refresh) the global hotkey bindings from ``settings``."""
         # Re-emit the signals from the listener thread; the signal then hops
@@ -502,19 +528,51 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_clip_requested(self) -> None:
-        """Save the rolling replay buffer's last N seconds to disk."""
+        """Kick off saving the rolling replay buffer's last N seconds to disk.
+
+        The save is asynchronous: :meth:`CaptureEngine.save_replay_clip` no
+        longer returns the written path -- it spawns a worker and returns at
+        once. We therefore check the engine state up front to decide which
+        tray balloon to show, then let the engine's clip/error listeners
+        (bridged through :meth:`_on_engine_clip_saved` and
+        :meth:`_on_engine_error`) announce the eventual outcome.
+        """
+        from sclip.contracts import CaptureState
+
+        if self._engine.state is not CaptureState.BUFFERING:
+            self._show_tray_message("S-Clip", "Replay buffer is not running.")
+            return
         try:
-            path = self._engine.save_replay_clip()
+            self._engine.save_replay_clip()
         except Exception:
             logger.exception("Saving replay clip failed")
             self._show_tray_message(
                 "S-Clip", "Could not save the replay clip -- see the log for details."
             )
             return
-        if path is None:
-            self._show_tray_message("S-Clip", "Replay buffer is not running.")
-            return
-        self._show_tray_message("S-Clip", f"Clip saved: {path.name}")
+        self._show_tray_message("S-Clip", "Saving clip…")
+
+    @Slot(object)
+    def _on_engine_clip_saved(self, path: object) -> None:
+        """Announce a finished clip save via the tray balloon.
+
+        Bridged from the engine's clip listener, so this always runs on the
+        GUI thread (see :meth:`_connect_engine_signals`).
+        """
+        from pathlib import Path
+
+        clip_path = path if isinstance(path, Path) else Path(str(path))
+        self._show_tray_message("S-Clip", f"Clip saved: {clip_path.name}")
+
+    @Slot(str)
+    def _on_engine_error(self, message: str) -> None:
+        """Surface a capture-engine error via the tray balloon.
+
+        Bridged from the engine's error listener, so this always runs on the
+        GUI thread (see :meth:`_connect_engine_signals`).
+        """
+        logger.error("Capture engine error: %s", message)
+        self._show_tray_message("S-Clip", message)
 
     @Slot()
     def _on_record_requested(self) -> None:
