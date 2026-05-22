@@ -1,0 +1,752 @@
+/*  S-Clip stylesheet.
+ *
+ *  Consumed by sclip.ui.theme.load_stylesheet, which runs Python-style
+ *  %%(token)s substitution against the live Theme dataclass. A literal percent
+ *  sign in the output would need to be written as %% here -- there are none
+ *  today, but keep it in mind if percentage dimensions are ever added.
+ *
+ *  Background strategy: plain QWidgets default to a transparent background, so
+ *  a container nested inside a card shows the card's surface through rather
+ *  than punching a darker hole in it. Every structural surface (the window,
+ *  the sidebar, cards, inputs, popups) sets its own background explicitly.
+ */
+
+
+/* ====================================================================
+ *  Baseline
+ * ==================================================================== */
+
+QWidget {
+    background: transparent;
+    color: %(text_primary)s;
+    font-family: %(body_family)s;
+    font-size: %(body_size)spx;
+    font-weight: %(body_weight)s;
+    outline: 0;
+}
+
+QMainWindow,
+QDialog {
+    background-color: %(bg)s;
+}
+
+
+/* ====================================================================
+ *  Labels and the type ramp
+ * ==================================================================== */
+
+QLabel {
+    background: transparent;
+    color: %(text_primary)s;
+}
+
+QLabel[role="display"] {
+    font-size: %(display_size)spx;
+    font-weight: %(display_weight)s;
+    color: %(text_primary)s;
+}
+
+QLabel[role="title"] {
+    font-size: %(title_size)spx;
+    font-weight: %(title_weight)s;
+    color: %(text_primary)s;
+}
+
+QLabel[role="subtitle"],
+QLabel[role="caption"] {
+    font-size: %(caption_size)spx;
+    font-weight: %(caption_weight)s;
+    color: %(text_secondary)s;
+}
+
+QLabel[role="muted"] {
+    font-size: %(caption_size)spx;
+    color: %(text_muted)s;
+}
+
+QLabel[role="label"] {
+    font-size: %(label_size)spx;
+    font-weight: %(label_weight)s;
+    color: %(text_secondary)s;
+}
+
+QLabel[role="value"] {
+    font-size: %(body_size)spx;
+    font-weight: 600;
+    color: %(text_primary)s;
+}
+
+QLabel[role="mono"] {
+    font-family: %(mono_family)s;
+    font-size: %(mono_size)spx;
+    font-weight: %(mono_weight)s;
+    color: %(text_primary)s;
+}
+
+QLabel[role="accent"] {
+    color: %(accent_text)s;
+    font-weight: 600;
+}
+
+
+/* ====================================================================
+ *  Buttons
+ *  Variants are chosen via the dynamic `role` property. IconButton sets
+ *  it in its constructor; a raw QPushButton should follow the convention.
+ * ==================================================================== */
+
+QPushButton {
+    background-color: %(surface_elevated)s;
+    color: %(text_primary)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_sm)spx;
+    padding: %(space_xs)spx %(space_md)spx;
+    font-size: %(body_size)spx;
+    font-weight: 600;
+    min-height: 34px;
+}
+
+QPushButton:hover {
+    background-color: #232734;
+    border-color: %(border_strong)s;
+}
+
+QPushButton:pressed {
+    background-color: #181B24;
+}
+
+QPushButton:focus {
+    border-color: %(accent_primary)s;
+}
+
+QPushButton:disabled {
+    background-color: %(surface)s;
+    color: %(text_disabled)s;
+    border-color: %(border)s;
+}
+
+/* -- Primary CTA: a violet button with a gentle vertical gradient ---- */
+QPushButton[role="primary"] {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 %(accent_primary_hover)s,
+        stop: 1 %(accent_primary)s);
+    color: #FFFFFF;
+    border: 1px solid %(accent_primary_pressed)s;
+    font-weight: 700;
+}
+
+QPushButton[role="primary"]:hover {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 #9F8BFF,
+        stop: 1 %(accent_primary_hover)s);
+}
+
+QPushButton[role="primary"]:pressed {
+    background-color: %(accent_primary_pressed)s;
+}
+
+QPushButton[role="primary"]:disabled {
+    background-color: %(surface_elevated)s;
+    border-color: %(border)s;
+    color: %(text_disabled)s;
+}
+
+/* -- Danger: the Stop button ---------------------------------------- */
+QPushButton[role="danger"] {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 %(danger_hover)s,
+        stop: 1 %(danger)s);
+    color: #FFFFFF;
+    border: 1px solid %(danger_pressed)s;
+    font-weight: 700;
+}
+
+QPushButton[role="danger"]:hover {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 #FF8088,
+        stop: 1 %(danger_hover)s);
+}
+
+QPushButton[role="danger"]:pressed {
+    background-color: %(danger_pressed)s;
+}
+
+/* -- Ghost: transparent, used for low-emphasis actions -------------- */
+QPushButton[role="ghost"] {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: %(text_secondary)s;
+    font-weight: 600;
+}
+
+QPushButton[role="ghost"]:hover {
+    color: %(text_primary)s;
+    background-color: rgba(124, 92, 255, 0.10);
+}
+
+QPushButton[role="ghost"]:pressed {
+    background-color: rgba(124, 92, 255, 0.18);
+}
+
+QPushButton[role="ghost"]:disabled {
+    color: %(text_disabled)s;
+    background-color: transparent;
+}
+
+
+/* ====================================================================
+ *  Text inputs and numeric editors
+ *  Inputs sit on the recessed `inset` colour so they read as wells the
+ *  user types into, distinct from the raised buttons beside them.
+ * ==================================================================== */
+
+QLineEdit,
+QSpinBox,
+QComboBox,
+QPlainTextEdit,
+QTextEdit {
+    background-color: %(inset)s;
+    color: %(text_primary)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_sm)spx;
+    padding: %(space_xs)spx %(space_sm)spx;
+    selection-background-color: %(accent_primary)s;
+    selection-color: #FFFFFF;
+    min-height: 22px;
+}
+
+QLineEdit:hover,
+QSpinBox:hover,
+QComboBox:hover {
+    border-color: %(border_strong)s;
+}
+
+QLineEdit:focus,
+QSpinBox:focus,
+QComboBox:focus,
+QPlainTextEdit:focus,
+QTextEdit:focus {
+    border-color: %(accent_primary)s;
+    background-color: %(bg)s;
+}
+
+QLineEdit:disabled,
+QSpinBox:disabled,
+QComboBox:disabled {
+    color: %(text_disabled)s;
+    background-color: %(surface)s;
+}
+
+QLineEdit[readOnly="true"] {
+    color: %(text_secondary)s;
+}
+
+/* SpinBox arrows -- the platform defaults look dated, so we point the two
+ * step buttons at the same little SVG chevrons the combo box uses. */
+QSpinBox::up-button,
+QSpinBox::down-button {
+    background-color: transparent;
+    border: none;
+    width: 20px;
+}
+
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+}
+
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+}
+
+QSpinBox::up-button:hover,
+QSpinBox::down-button:hover {
+    background-color: %(surface_elevated)s;
+}
+
+QSpinBox::up-arrow {
+    image: url(%(assets)s/chevron-up.svg);
+    width: 11px;
+    height: 11px;
+}
+
+QSpinBox::down-arrow {
+    image: url(%(assets)s/chevron-down.svg);
+    width: 11px;
+    height: 11px;
+}
+
+
+/* ====================================================================
+ *  ComboBox
+ *  The popup is a separate top-level QFrame and inherits nothing, so it
+ *  needs its surface, border and item states spelled out in full.
+ * ==================================================================== */
+
+QComboBox {
+    padding-right: %(space_lg)spx;  /* room for the drop-down chevron */
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: %(space_lg)spx;
+    border: none;
+    background: transparent;
+}
+
+QComboBox::down-arrow {
+    image: url(%(assets)s/chevron-down.svg);
+    width: 12px;
+    height: 12px;
+    margin-right: %(space_xs)spx;
+}
+
+QComboBox QAbstractItemView {
+    background-color: %(surface_elevated)s;
+    color: %(text_primary)s;
+    border: 1px solid %(border_strong)s;
+    border-radius: %(radius_md)spx;
+    padding: %(space_xxs)spx;
+    selection-background-color: %(accent_primary)s;
+    selection-color: #FFFFFF;
+    outline: 0;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: %(space_xs)spx %(space_sm)spx;
+    border-radius: %(radius_sm)spx;
+    min-height: 26px;
+}
+
+QComboBox QAbstractItemView::item:hover {
+    background-color: rgba(124, 92, 255, 0.18);
+}
+
+
+/* ====================================================================
+ *  Check boxes
+ * ==================================================================== */
+
+QCheckBox {
+    color: %(text_primary)s;
+    spacing: %(space_xs)spx;
+    background: transparent;
+    font-size: %(body_size)spx;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1px solid %(border_strong)s;
+    background-color: %(inset)s;
+}
+
+QCheckBox::indicator:hover {
+    border-color: %(accent_primary)s;
+}
+
+QCheckBox::indicator:checked {
+    background-color: %(accent_primary)s;
+    border-color: %(accent_primary)s;
+    image: url(none);
+}
+
+QCheckBox::indicator:disabled {
+    background-color: %(surface)s;
+    border-color: %(border)s;
+}
+
+QCheckBox:disabled {
+    color: %(text_disabled)s;
+}
+
+
+/* ====================================================================
+ *  Tooltips and menus
+ * ==================================================================== */
+
+QToolTip {
+    background-color: %(surface_elevated)s;
+    color: %(text_primary)s;
+    border: 1px solid %(border_strong)s;
+    border-radius: %(radius_sm)spx;
+    padding: %(space_xs)spx %(space_sm)spx;
+    font-size: %(caption_size)spx;
+}
+
+QMenu {
+    background-color: %(surface_elevated)s;
+    border: 1px solid %(border_strong)s;
+    border-radius: %(radius_md)spx;
+    padding: %(space_xxs)spx;
+}
+
+QMenu::item {
+    padding: %(space_xs)spx %(space_lg)spx;
+    border-radius: %(radius_sm)spx;
+    color: %(text_primary)s;
+}
+
+QMenu::item:selected {
+    background-color: rgba(124, 92, 255, 0.20);
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: %(border)s;
+    margin: %(space_xxs)spx %(space_xs)spx;
+}
+
+
+/* ====================================================================
+ *  Scroll bars and scroll areas
+ * ==================================================================== */
+
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: %(border_strong)s;
+    min-height: 32px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #454B5C;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+    border: none;
+    height: 0;
+}
+
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 2px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: %(border_strong)s;
+    min-width: 32px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #454B5C;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal,
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: transparent;
+    border: none;
+    width: 0;
+}
+
+
+/* ====================================================================
+ *  Title bar (the frameless window's own chrome)
+ * ==================================================================== */
+
+QWidget#TitleBar {
+    background-color: %(bg_alt)s;
+    border-bottom: 1px solid %(border)s;
+}
+
+QLabel#TitleBarMark {
+    background: transparent;
+}
+
+QLabel#TitleBarLabel {
+    color: %(text_secondary)s;
+    font-size: %(body_size)spx;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: transparent;
+}
+
+QPushButton#WinBtn,
+QPushButton#WinBtnClose {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+QPushButton#WinBtn:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+QPushButton#WinBtn:pressed {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+QPushButton#WinBtnClose:hover {
+    background-color: %(danger)s;
+}
+
+QPushButton#WinBtnClose:pressed {
+    background-color: %(danger_pressed)s;
+}
+
+
+/* ====================================================================
+ *  Sidebar
+ * ==================================================================== */
+
+QWidget#Sidebar {
+    background-color: %(bg_alt)s;
+    border-right: 1px solid %(border)s;
+}
+
+QLabel#SidebarTitle {
+    color: %(text_primary)s;
+    font-size: %(title_size)spx;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: %(space_lg)spx %(space_lg)spx %(space_xxs)spx %(space_lg)spx;
+    background: transparent;
+}
+
+QLabel#SidebarVersion {
+    color: %(text_muted)s;
+    font-size: %(caption_size)spx;
+    padding: 0 %(space_lg)spx %(space_lg)spx %(space_lg)spx;
+    background: transparent;
+}
+
+QPushButton#SidebarItem {
+    text-align: left;
+    background-color: transparent;
+    color: %(text_secondary)s;
+    border: none;
+    border-radius: %(radius_sm)spx;
+    padding: %(space_sm)spx %(space_sm)spx %(space_sm)spx %(space_md)spx;
+    margin: 2px %(space_sm)spx;
+    font-size: %(body_size)spx;
+    font-weight: 600;
+    min-height: 22px;
+}
+
+QPushButton#SidebarItem:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+    color: %(text_primary)s;
+}
+
+QPushButton#SidebarItem:checked,
+QPushButton#SidebarItem[selected="true"] {
+    background-color: rgba(124, 92, 255, 0.14);
+    color: %(text_primary)s;
+}
+
+
+/* ====================================================================
+ *  Card
+ * ==================================================================== */
+
+QFrame#Card {
+    background-color: %(surface)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_lg)spx;
+}
+
+QLabel#CardTitle {
+    font-size: %(title_size)spx;
+    font-weight: %(title_weight)s;
+    color: %(text_primary)s;
+    background: transparent;
+}
+
+QLabel#CardSubtitle {
+    font-size: %(caption_size)spx;
+    font-weight: %(caption_weight)s;
+    color: %(text_secondary)s;
+    background: transparent;
+}
+
+
+/* ====================================================================
+ *  Inset panel -- a recessed sub-surface used inside cards (the capture
+ *  hero, thumbnails, the clip detail well).
+ * ==================================================================== */
+
+QFrame#Inset {
+    background-color: %(inset)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_md)spx;
+}
+
+QFrame#Divider {
+    background-color: %(border)s;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+
+/* ====================================================================
+ *  StatusPill
+ * ==================================================================== */
+
+QWidget#StatusPill {
+    background-color: %(surface_elevated)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_pill)spx;
+}
+
+QLabel#StatusPillLabel {
+    color: %(text_secondary)s;
+    background: transparent;
+    font-size: %(caption_size)spx;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+}
+
+
+/* ====================================================================
+ *  HotkeyEdit
+ * ==================================================================== */
+
+QLineEdit#HotkeyEdit {
+    font-family: %(mono_family)s;
+    font-size: %(mono_size)spx;
+    font-weight: %(mono_weight)s;
+    letter-spacing: 0.5px;
+    background-color: %(inset)s;
+}
+
+QLineEdit#HotkeyEdit[capturing="true"] {
+    border-color: %(accent_primary)s;
+    background-color: %(bg)s;
+    color: %(accent_text)s;
+}
+
+
+/* ====================================================================
+ *  SegmentedControl
+ *  The container is a recessed well; the selected option lifts out of it
+ *  on the elevated surface colour. No accent fill -- the lift is enough.
+ * ==================================================================== */
+
+QWidget#SegmentedControl {
+    background-color: %(inset)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_sm)spx;
+    padding: 3px;
+}
+
+QPushButton#SegmentedControlOption {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: %(text_secondary)s;
+    padding: %(space_xs)spx %(space_md)spx;
+    min-height: 26px;
+    font-weight: 600;
+}
+
+QPushButton#SegmentedControlOption:hover {
+    color: %(text_primary)s;
+}
+
+QPushButton#SegmentedControlOption:checked,
+QPushButton#SegmentedControlOption[selected="true"] {
+    background-color: %(surface_elevated)s;
+    border-color: %(border)s;
+    color: %(text_primary)s;
+}
+
+
+/* ====================================================================
+ *  Settings form helpers
+ * ==================================================================== */
+
+QLabel#FieldLabel {
+    color: %(text_secondary)s;
+    font-size: %(label_size)spx;
+    font-weight: %(label_weight)s;
+    background: transparent;
+}
+
+QLabel#FieldHint {
+    color: %(text_muted)s;
+    font-size: %(caption_size)spx;
+    background: transparent;
+}
+
+QLabel#FieldError {
+    color: %(danger)s;
+    font-size: %(caption_size)spx;
+    background: transparent;
+}
+
+
+/* ====================================================================
+ *  Chip -- a small rounded info pill used for capture-summary readouts
+ * ==================================================================== */
+
+QFrame#Chip {
+    background-color: %(inset)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_sm)spx;
+}
+
+QLabel#ChipLabel {
+    color: %(text_muted)s;
+    font-size: %(caption_size)spx;
+    font-weight: 600;
+    background: transparent;
+}
+
+QLabel#ChipValue {
+    color: %(text_primary)s;
+    font-size: %(body_size)spx;
+    font-weight: 600;
+    background: transparent;
+}
+
+
+/* ====================================================================
+ *  Clip tile -- a thumbnail card in the library grid
+ * ==================================================================== */
+
+QFrame#ClipTile {
+    background-color: %(surface)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_md)spx;
+}
+
+QFrame#ClipTile:hover {
+    border-color: %(border_strong)s;
+    background-color: %(surface_elevated)s;
+}
+
+QFrame#ClipTile[selected="true"] {
+    border-color: %(accent_primary)s;
+}
+
+QLabel#ClipThumb {
+    background-color: %(inset)s;
+    border-radius: %(radius_sm)spx;
+    color: %(text_muted)s;
+}
