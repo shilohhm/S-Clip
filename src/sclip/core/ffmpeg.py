@@ -21,8 +21,7 @@ import logging
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable, Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -200,7 +199,7 @@ def run_ffmpeg(
     """Run FFmpeg synchronously, capturing stdout and stderr as text.
 
     Suited to short-lived helpers such as the concat job. Long-running
-    captures should use :func:`spawn_ffmpeg` instead.
+    captures should use :func:`start_ffmpeg` instead.
     """
     ff = binary or find_ffmpeg()
     cmdline = _argv_with_binary(ff, args)
@@ -217,24 +216,30 @@ def run_ffmpeg(
     )
 
 
-@contextmanager
-def spawn_ffmpeg(
+def start_ffmpeg(
     args: Sequence[str],
     *,
     binary: Path | None = None,
-) -> Iterator[subprocess.Popen[str]]:
-    """Start an FFmpeg process with the plumbing a graceful stop needs.
+) -> subprocess.Popen[str]:
+    """Start a long-lived FFmpeg process and return the ``Popen`` handle.
 
-    Yields a ``Popen`` whose stdin is a pipe — so the caller can write ``q``
-    and let FFmpeg finalise the file — and whose stderr is piped so a failure
-    can be explained. The context manager reaps the process if the caller
-    raises before stopping it explicitly.
+    The returned process has its stdin wired to a pipe so the caller can
+    write ``q`` to request a graceful shutdown, and its stderr piped so a
+    failure can be diagnosed. stdout is discarded; ``bufsize=0`` ensures
+    ``q`` reaches FFmpeg immediately without sitting in a write buffer.
+
+    The caller owns the process lifecycle entirely. It must stop the process
+    explicitly via :func:`stop_ffmpeg` when the capture is no longer needed.
+    There is no automatic teardown: this function is a plain factory, not a
+    context manager. That is intentional — a long-lived process that has its
+    own graceful-stop protocol (``q`` → terminate → kill) does not benefit
+    from automatic termination on scope exit, and forcing that model causes
+    subtle bugs when the process is stored across scope boundaries.
     """
     ff = binary or find_ffmpeg()
     cmdline = _argv_with_binary(ff, args)
-    logger.debug("Spawning FFmpeg: %s", " ".join(cmdline))
-
-    process = subprocess.Popen(
+    logger.debug("Starting FFmpeg: %s", " ".join(cmdline))
+    return subprocess.Popen(
         cmdline,
         stdin=subprocess.PIPE,
         stdout=subprocess.DEVNULL,
@@ -245,18 +250,6 @@ def spawn_ffmpeg(
         bufsize=0,  # unbuffered: 'q' should reach FFmpeg the moment we send it
         **popen_kwargs(),
     )
-    try:
-        yield process
-    finally:
-        if process.poll() is None:
-            logger.debug("Context manager exit with live FFmpeg; terminating")
-            try:
-                process.terminate()
-                process.wait(timeout=5.0)
-            except subprocess.TimeoutExpired:
-                logger.warning("FFmpeg ignored terminate; killing")
-                process.kill()
-                process.wait(timeout=5.0)
 
 
 def stop_ffmpeg(process: subprocess.Popen[str], *, timeout: float = 8.0) -> int:
@@ -644,6 +637,6 @@ __all__ = [
     "read_stderr_tail",
     "remove_quietly",
     "run_ffmpeg",
-    "spawn_ffmpeg",
+    "start_ffmpeg",
     "stop_ffmpeg",
 ]

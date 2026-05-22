@@ -18,11 +18,11 @@ capture ends.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import subprocess
 import threading
 from collections.abc import Callable
-from contextlib import AbstractContextManager
 from datetime import datetime
 from pathlib import Path
 
@@ -34,7 +34,7 @@ from sclip.core.ffmpeg import (
     VideoBackend,
     build_capture_io,
     read_stderr_tail,
-    spawn_ffmpeg,
+    start_ffmpeg,
     stop_ffmpeg,
 )
 from sclip.core.replay_buffer import SEGMENT_SECONDS, BufferSpec, RollingBuffer
@@ -95,7 +95,6 @@ class FFmpegCaptureEngine:
         self._error_listeners: list[ErrorCallback] = []
 
         self._manual_process: subprocess.Popen[str] | None = None
-        self._manual_context: AbstractContextManager[subprocess.Popen[str]] | None = None
         self._manual_output: Path | None = None
 
         # The clip-save stitch runs on a daemon worker thread so it never
@@ -157,21 +156,17 @@ class FFmpegCaptureEngine:
         """Stop the manual recording and return the written MP4 path."""
         with self._lock:
             process = self._manual_process
-            ctx = self._manual_context
             destination = self._manual_output
             if process is None:
                 return None
 
             self._manual_process = None
-            self._manual_context = None
             self._manual_output = None
             self._set_state(CaptureState.SAVING)
 
         try:
             stop_ffmpeg(process)
         finally:
-            if ctx is not None:
-                ctx.__exit__(None, None, None)
             # FFmpeg has let go of the audio pipe; the pump can stop now.
             self._stop_desktop_pump()
 
@@ -381,12 +376,14 @@ class FFmpegCaptureEngine:
             )
             args = [*io_args, "-movflags", "+faststart", str(destination)]
 
-            ctx = spawn_ffmpeg(args)
-            process = ctx.__enter__()
+            process = start_ffmpeg(args)
             try:
                 self._check_started(process, f"Manual recording ({backend.value})")
             except RuntimeError as exc:
-                ctx.__exit__(None, None, None)
+                # The process failed to start; kill it before trying the next backend.
+                if process.poll() is None:
+                    with contextlib.suppress(OSError):
+                        process.kill()
                 self._stop_desktop_pump()
                 last_error = exc
                 if backend is not _BACKEND_ORDER[-1]:
@@ -396,7 +393,6 @@ class FFmpegCaptureEngine:
                     continue
                 break
 
-            self._manual_context = ctx
             self._manual_process = process
             self._manual_output = destination
             logger.info("Manual recording started with %s backend", backend.value)

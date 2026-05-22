@@ -312,14 +312,13 @@ def install_fake_ffmpeg(
        current Python interpreter in front of the script so the resulting
        argv is directly runnable by :class:`subprocess.Popen` without a
        shell shim.
-    2. :func:`spawn_ffmpeg` is wrapped so the underlying context-manager
-       generator is held alive for the duration of the test session. Without
-       that, the implementation in :mod:`sclip.core.replay_buffer` — which
-       intentionally escapes the context manager and keeps only the
-       ``Popen`` handle — would see the generator collected and its
-       ``finally`` block run, which terminates FFmpeg. That GC race is a
-       real bug in the production code, but fixing it is outside this
-       agent's remit; the fixture documents the workaround in one place.
+    2. :func:`start_ffmpeg` is patched in both the ``ffmpeg`` module and the
+       ``replay_buffer`` module, which imports it by name. Because
+       :func:`start_ffmpeg` is now a plain function (not a context manager),
+       there is no generator to keep alive and no GC race to work around —
+       the previous ``held_contexts`` / ``keep_spawn_alive`` workaround that
+       existed here is no longer needed and has been removed as part of
+       Remediation R2.
     """
     from sclip.core import ffmpeg as ffmpeg_module
 
@@ -333,23 +332,13 @@ def install_fake_ffmpeg(
             *list(args),  # accept any iterable of strings
         ]
 
-    # Hold a reference to every yielded context manager so the GC cannot
-    # reclaim the generator while a test is still running.
-    held_contexts: list[object] = []
-    real_spawn = ffmpeg_module.spawn_ffmpeg
-
-    def keep_spawn_alive(*args: object, **kwargs: object) -> object:
-        ctx = real_spawn(*args, **kwargs)
-        held_contexts.append(ctx)
-        return ctx
-
     monkeypatch.setattr(ffmpeg_module, "find_ffmpeg", lambda: fake_ffmpeg_binary)
     monkeypatch.setattr(ffmpeg_module, "_argv_with_binary", fake_argv_with_binary)
-    monkeypatch.setattr(ffmpeg_module, "spawn_ffmpeg", keep_spawn_alive)
-    # Replay buffer imports spawn_ffmpeg by name; patch there too.
+    # Replay buffer imports start_ffmpeg by name; patch there too so that
+    # module resolves the fake binary when it calls start_ffmpeg directly.
     from sclip.core import replay_buffer as replay_buffer_module
 
-    monkeypatch.setattr(replay_buffer_module, "spawn_ffmpeg", keep_spawn_alive)
+    monkeypatch.setattr(replay_buffer_module, "start_ffmpeg", ffmpeg_module.start_ffmpeg)
     return fake_ffmpeg_binary
 
 

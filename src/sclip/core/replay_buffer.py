@@ -22,13 +22,13 @@ being saved, so the user does not miss the next few seconds of action.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import subprocess
 import threading
 import time
 from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,7 +39,7 @@ from sclip.core.ffmpeg import (
     read_stderr_tail,
     remove_quietly,
     run_ffmpeg,
-    spawn_ffmpeg,
+    start_ffmpeg,
     stop_ffmpeg,
 )
 
@@ -151,7 +151,6 @@ class RollingBuffer:
         self._directory = directory
         self._lock = threading.RLock()
         self._process: subprocess.Popen[str] | None = None
-        self._context: AbstractContextManager[subprocess.Popen[str]] | None = None
         self._spec: BufferSpec | None = None
         self._on_error: Callable[[str], None] | None = None
 
@@ -201,13 +200,7 @@ class RollingBuffer:
                 self._directory,
             )
 
-            ctx = spawn_ffmpeg(argv)
-            process = ctx.__enter__()
-            # Keep the context manager alive for the whole process lifetime.
-            # Letting it fall out of scope runs its ``finally`` block during
-            # GC, which terminates the FFmpeg process on Windows.
-            self._context = ctx
-            self._process = process
+            self._process = start_ffmpeg(argv)
             self._spec = spec
 
             # If the process exits within a few hundred ms it almost
@@ -277,12 +270,10 @@ class RollingBuffer:
     def _stop_locked(self) -> None:
         """Stop the muxer assuming we already hold the lock."""
         process = self._process
-        ctx = self._context
         if process is None:
             return
 
         self._process = None
-        self._context = None
         self._spec = None
 
         if process.poll() is None:
@@ -290,9 +281,6 @@ class RollingBuffer:
             logger.info("Replay buffer FFmpeg exited with code %s", exit_code)
         else:
             logger.debug("Replay buffer FFmpeg had already exited (code %s)", process.returncode)
-
-        if ctx is not None:
-            ctx.__exit__(None, None, None)
 
     def _purge_segments_locked(self) -> None:
         """Delete every leftover ``.ts`` segment in the buffer directory."""
@@ -341,11 +329,13 @@ class RollingBuffer:
             return
 
         tail = read_stderr_tail(process)
-        if self._context is not None:
-            self._context.__exit__(None, None, None)
         self._process = None
-        self._context = None
         self._spec = None
+        # The process has already exited, but defensively ensure it is fully
+        # reaped before surfacing the error. kill() on an already-dead process
+        # is a no-op on all major platforms.
+        with contextlib.suppress(OSError):
+            process.kill()
         message = (
             f"Replay buffer FFmpeg exited immediately (code {exit_code}). "
             f"FFmpeg said: {tail.strip() or '<no output>'}"
