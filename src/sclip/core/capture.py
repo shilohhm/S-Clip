@@ -441,9 +441,22 @@ class FFmpegCaptureEngine:
     def _resolve_monitor(self, settings: Settings) -> tuple[Monitor, int]:
         """Find the monitor the user picked and its zero-based output index.
 
-        The index doubles as the ddagrab ``output_idx``. It is taken from the
-        position in the registry's list, which matches the DXGI output order
-        on the single-GPU machines this app targets.
+        The returned index doubles as the ddagrab ``output_idx``. It is the
+        position of the matching monitor in :meth:`DeviceRegistry.monitors`,
+        which today is backed by :mod:`screeninfo`.
+
+        Caveat — the index is *assumed* to match the DXGI output order that
+        ``ddagrab`` consumes. On a single-GPU machine, and on most ordinary
+        multi-monitor setups, the two orderings agree; but ``screeninfo`` does
+        not promise DXGI order, so on an unusual configuration (a fresh hot-
+        plug, a mixed-driver setup) ``ddagrab`` could end up capturing a
+        different display than the one the user selected. A proper fix needs
+        first-class DXGI enumeration, which is out of scope here.
+
+        When no monitor matches by name, the first enumerated monitor wins
+        with ``output_idx=0`` — the primary display in practice. When the
+        registry is empty we fabricate a 1920x1080 primary so a capture is
+        still attempted rather than failing the user with an empty list.
         """
         monitors = self._device_registry.monitors()
         for index, monitor in enumerate(monitors):
@@ -489,10 +502,28 @@ class FFmpegCaptureEngine:
         )
 
     def _clip_path(self, prefix: str, settings: Settings) -> Path:
-        clips_dir = (
-            Path(settings.output_dir).expanduser() if settings.output_dir else app_paths().clips_dir
-        )
-        clips_dir.mkdir(parents=True, exist_ok=True)
+        """Resolve the destination path for one written clip.
+
+        If a custom ``output_dir`` is configured and we cannot prepare it (the
+        target has been removed, a USB drive unplugged, permissions changed),
+        we fall back to the platform default rather than letting a capture
+        fail outright. The settings layer already validates the *shape* of the
+        value (see :func:`_coerce_output_dir`); this is the runtime safety net.
+        """
+        default_dir = app_paths().clips_dir
+        configured = settings.output_dir.strip() if settings.output_dir else ""
+        clips_dir = Path(configured).expanduser() if configured else default_dir
+        try:
+            clips_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "Configured output_dir %s is unusable (%s); falling back to %s",
+                clips_dir,
+                exc,
+                default_dir,
+            )
+            clips_dir = default_dir
+            clips_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         return clips_dir / f"{prefix}_{timestamp}.mp4"
 

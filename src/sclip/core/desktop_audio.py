@@ -257,7 +257,14 @@ class DesktopAudioPump:
 
     @staticmethod
     def _resolve_loopback_device(pyaudio_module: object) -> dict[str, Any] | None:
-        """Find the loopback device that mirrors the default playback device."""
+        """Find the loopback device that mirrors the default playback device.
+
+        PyAudio's ``get_loopback_device_info_generator`` is a one-shot
+        generator: iterating it a second time yields nothing.  We therefore
+        materialise it into a list once and do both the name-match pass and
+        the first-device fallback against that list, so neither pass silently
+        sees an empty sequence.
+        """
         try:
             audio = pyaudio_module.PyAudio()  # type: ignore[attr-defined]
         except Exception:
@@ -267,13 +274,16 @@ class DesktopAudioPump:
             wasapi = audio.get_host_api_info_by_type(pyaudio_module.paWASAPI)  # type: ignore[attr-defined]
             default_output = audio.get_device_info_by_index(int(wasapi["defaultOutputDevice"]))
             target = str(default_output["name"])
-            for loopback in audio.get_loopback_device_info_generator():
+            # Collect the generator into a list so we can traverse it twice
+            # without the second loop seeing an exhausted iterator.
+            loopbacks = list(audio.get_loopback_device_info_generator())
+            for loopback in loopbacks:
                 if target in str(loopback["name"]):
                     return dict(loopback)
             # No exact match — fall back to the first loopback device so the
             # feature still works on an unusual audio configuration.
-            for loopback in audio.get_loopback_device_info_generator():
-                return dict(loopback)
+            if loopbacks:
+                return dict(loopbacks[0])
             return None
         except Exception:
             logger.exception("Could not resolve a loopback device")
