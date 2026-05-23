@@ -42,8 +42,10 @@ _AUDIO_THREAD_QUEUE: str = "1024"
 
 # AAC at this bitrate is transparent for a screen recording and, unlike the
 # legacy MP3 track the old code wrote, sits cleanly inside both MP4 and the
-# MPEG-TS segments the replay buffer rotates through.
-_AUDIO_BITRATE: str = "192k"
+# MPEG-TS segments the replay buffer rotates through. Public so the replay
+# buffer's clip-stitch step encodes audio at the same bitrate as the live
+# capture — one source of truth keeps the two paths in lockstep.
+AUDIO_BITRATE: str = "192k"
 
 
 class FFmpegNotFoundError(RuntimeError):
@@ -611,7 +613,7 @@ def build_capture_io(
         frames_on_gpu=frames_on_gpu,
     )
     if audio_indices:
-        argv += ["-c:a", "aac", "-b:a", _AUDIO_BITRATE]
+        argv += ["-c:a", "aac", "-b:a", AUDIO_BITRATE]
     else:
         argv += ["-an"]
 
@@ -619,6 +621,7 @@ def build_capture_io(
 
 
 __all__ = [
+    "AUDIO_BITRATE",
     "AudioConfig",
     "CapturePlan",
     "FFmpegNotFoundError",

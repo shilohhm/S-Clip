@@ -267,7 +267,6 @@ class DeviceRegistry(Protocol):
 
 __all__ = [
     "ENCODERS",
-    "_ENCODER_LABELS",
     "AudioDevice",
     "CaptureEngine",
     "CaptureMode",

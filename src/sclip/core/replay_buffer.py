@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sclip.core.ffmpeg import (
-    _AUDIO_BITRATE,
+    AUDIO_BITRATE,
     build_quality_args,
     expected_segment_paths,
     iter_argv_flat,
@@ -396,7 +396,7 @@ class RollingBuffer:
             "-c:a",
             "aac",
             "-b:a",
-            _AUDIO_BITRATE,
+            AUDIO_BITRATE,
             # ``faststart`` puts the moov atom at the front so the resulting
             # MP4 is seekable straight from disk and uploadable to most
             # services without a remux.
