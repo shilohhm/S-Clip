@@ -492,6 +492,7 @@ class MainWindow(QMainWindow):
         self._refresh_hotkeys(previous, settings)
         self._refresh_tray_labels(settings)
         self._reload_engine_if_supported()
+        self._refresh_capture_page(settings)
 
     def _refresh_hotkeys(self, previous: Settings, current: Settings) -> None:
         """Unregister the previous chord pair and install the new one."""
@@ -523,6 +524,27 @@ class MainWindow(QMainWindow):
             reload_hook()
         except Exception:
             logger.exception("Capture engine failed to reload settings")
+
+    def _refresh_capture_page(self, settings: Settings) -> None:
+        """Notify the capture page that settings have changed, if it supports it.
+
+        :class:`~sclip.ui.pages.CapturePage` exposes ``refresh_from_settings``
+        so its monitor/audio/quality chips stay in step with the new settings
+        immediately after a save, rather than showing stale values until the
+        next engine-state transition.
+
+        The call is guarded with :func:`getattr` — matching the same defensive
+        optional-method pattern used for :meth:`_reload_engine_if_supported` —
+        so a placeholder widget or a future page that drops the method does not
+        cause a crash here.
+        """
+        refresh_hook = getattr(self._capture_page, "refresh_from_settings", None)
+        if refresh_hook is None:
+            return
+        try:
+            refresh_hook(settings)
+        except Exception:
+            logger.exception("Capture page failed to refresh from settings")
 
     # -- action handlers ----------------------------------------------------
 

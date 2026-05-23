@@ -258,3 +258,114 @@ def test_save_normalises_invalid_settings_on_write(tmp_settings_file: Path) -> N
 
     assert raw["encoder"] == "libx264"
     assert raw["fps"] == 240  # clamped to the upper bound
+
+
+# ----------------------------------------------------------- defensive validators
+#
+# ``audio_input`` and ``output_dir`` are the two settings strings that flow
+# largely-unfiltered into FFmpeg argv or filesystem operations. They are also
+# the two values most likely to arrive from a hand-edited or shared
+# settings.json. The tests below pin down the rejection behaviour of the
+# dedicated coercers so a hostile file cannot silently weaponise either.
+
+
+@pytest.mark.parametrize(
+    "hostile_audio_input",
+    [
+        "-malicious_option",  # leading dash — could be parsed as an FFmpeg option
+        "  -still_dash",  # whitespace-padded leading dash
+        "name\x00with\x00nul",  # ASCII control characters
+        "name\x07with\x07bell",
+        "x" * 1024,  # absurd length
+    ],
+)
+def test_hostile_audio_input_is_rejected(
+    tmp_settings_file: Path,
+    hostile_audio_input: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    tmp_settings_file.write_text(
+        json.dumps({"audio_input": hostile_audio_input}),
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.WARNING, logger="sclip.core.settings"):
+        loaded = JsonSettingsStore(tmp_settings_file).load()
+    assert loaded.audio_input == ""
+    assert any("audio_input" in record.getMessage() for record in caplog.records)
+
+
+def test_legitimate_audio_input_is_preserved(tmp_settings_file: Path) -> None:
+    """Ordinary Windows audio-device names with spaces and parens pass through."""
+    legit = "Microphone (Realtek High Definition Audio)"
+    tmp_settings_file.write_text(json.dumps({"audio_input": legit}), encoding="utf-8")
+    assert JsonSettingsStore(tmp_settings_file).load().audio_input == legit
+
+
+@pytest.mark.parametrize(
+    "hostile_output_dir",
+    [
+        r"\\attacker.example.com\share",  # Windows UNC path — NTLM-hash leak vector
+        "//attacker.example.com/share",  # POSIX-style UNC path
+        "relative/path",  # not absolute
+        "clips",  # not absolute
+    ],
+)
+def test_hostile_output_dir_is_rejected(
+    tmp_settings_file: Path,
+    hostile_output_dir: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    tmp_settings_file.write_text(
+        json.dumps({"output_dir": hostile_output_dir}),
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.WARNING, logger="sclip.core.settings"):
+        loaded = JsonSettingsStore(tmp_settings_file).load()
+    assert loaded.output_dir == ""
+    assert any("output_dir" in record.getMessage() for record in caplog.records)
+
+
+def test_legitimate_output_dir_is_preserved(tmp_settings_file: Path) -> None:
+    """An ordinary absolute path is accepted; empty string is the explicit opt-out."""
+    legit = "D:/Recordings/S-Clip"
+    tmp_settings_file.write_text(json.dumps({"output_dir": legit}), encoding="utf-8")
+    assert JsonSettingsStore(tmp_settings_file).load().output_dir == legit
+    tmp_settings_file.write_text(json.dumps({"output_dir": ""}), encoding="utf-8")
+    assert JsonSettingsStore(tmp_settings_file).load().output_dir == ""
+
+
+# --------------------------------------------------------------- Settings.copy()
+
+
+def test_settings_copy_round_trips_every_field() -> None:
+    """``Settings.copy()`` must clone *every* field, not a hand-maintained subset.
+
+    Belt-and-braces against silently dropping a field when the dataclass is
+    extended. Compares attribute-by-attribute against ``dataclasses.fields``.
+    """
+    import dataclasses
+
+    original = Settings(
+        resolution="3840x2160",
+        fps=120,
+        encoder="hevc_nvenc",
+        preset="p7",
+        crf=18,
+        audio_input="Mic",
+        capture_audio=False,
+        capture_desktop_audio=False,
+        replay_buffer=False,
+        replay_seconds=120,
+        monitor="Monitor 3",
+        clip_hotkey=Hotkey(key="F11", ctrl=True),
+        record_hotkey=Hotkey(key="F12", alt=True),
+        output_dir="D:/clips",
+        auto_configure=False,
+    )
+
+    duplicate = original.copy()
+
+    assert duplicate is not original
+    for field_info in dataclasses.fields(Settings):
+        name = field_info.name
+        assert getattr(duplicate, name) == getattr(original, name), name

@@ -102,11 +102,16 @@ _THUMB_SCALE_WIDTH: int = 320
 
 
 def _format_size(num_bytes: int) -> str:
-    """Render a byte count in a friendly unit, e.g. ``"1.2 MB"``."""
+    """Render a byte count in a friendly unit, e.g. ``"1.2 MB"``.
+
+    The previous form divided ``value`` *before* the ``TB`` branch fired, so a
+    file ≥ 1 TB was reported in the wrong order of magnitude. This version
+    only divides while there is still a larger unit to fall through to.
+    """
     value = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if value < 1024.0 or unit == "TB":
-            return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024.0:
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
         value /= 1024.0
     return f"{value:.1f} TB"
 

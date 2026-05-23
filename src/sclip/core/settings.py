@@ -40,6 +40,11 @@ _REPLAY_MIN, _REPLAY_MAX = 5, 600
 # definitions never drift apart.
 _VALID_ENCODERS: frozenset[str] = frozenset(spec.codec for spec in ENCODERS)
 
+# Maximum byte length for a device name that came from settings.json.  A
+# legitimate Windows audio-device name is rarely more than ~100 characters;
+# 256 is generous while still bounding the attack surface.
+_AUDIO_INPUT_MAX_LEN: int = 256
+
 
 class JsonSettingsStore:
     """JSON-backed :class:`SettingsStore` with atomic writes and schema migration.
@@ -148,7 +153,7 @@ def _settings_from_dict(data: dict[str, Any]) -> Settings:
         encoder=encoder,
         preset=preset,
         crf=_coerce_int(data.get("crf"), defaults.crf, _CRF_MIN, _CRF_MAX, "crf"),
-        audio_input=_coerce_str(data.get("audio_input"), defaults.audio_input),
+        audio_input=_coerce_audio_input(data.get("audio_input"), defaults.audio_input),
         capture_audio=_coerce_bool(data.get("capture_audio"), defaults.capture_audio),
         capture_desktop_audio=_coerce_bool(
             data.get("capture_desktop_audio"), defaults.capture_desktop_audio
@@ -164,7 +169,7 @@ def _settings_from_dict(data: dict[str, Any]) -> Settings:
         monitor=_coerce_str(data.get("monitor"), defaults.monitor),
         clip_hotkey=_coerce_hotkey(data.get("clip_hotkey"), defaults.clip_hotkey),
         record_hotkey=_coerce_hotkey(data.get("record_hotkey"), defaults.record_hotkey),
-        output_dir=_coerce_str(data.get("output_dir"), defaults.output_dir),
+        output_dir=_coerce_output_dir(data.get("output_dir"), defaults.output_dir),
         auto_configure=_coerce_bool(data.get("auto_configure"), defaults.auto_configure),
     )
 
@@ -253,6 +258,87 @@ def _coerce_str(value: Any, default: str) -> str:
         return default
     logger.warning("Invalid string %r; falling back to %r", value, default)
     return default
+
+
+def _coerce_audio_input(value: Any, default: str) -> str:  # noqa: PLR0911 — early returns per rejection reason are clearer than a flag/break ladder
+    """Validate a DirectShow audio-device name loaded from settings.
+
+    ``settings.json`` is hand-editable, so the device name reaches us as raw
+    user input before it is glued into an FFmpeg argv element. We accept any
+    legitimate Windows audio-device name but reject values that look engineered
+    to confuse FFmpeg's dshow demuxer or its argument parsing — leading ``-``
+    (which the parser might read as an option), embedded ASCII control
+    characters, or absurd length. A rejected value falls back to ``""`` (no
+    microphone) so a hostile or fat-fingered file still leaves the app
+    starting cleanly.
+    """
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        logger.warning("Invalid audio_input %r; falling back to %r", value, default)
+        return default
+    if not value:
+        return ""
+    if len(value) > _AUDIO_INPUT_MAX_LEN:
+        logger.warning(
+            "audio_input is %d chars (max %d); falling back to %r",
+            len(value),
+            _AUDIO_INPUT_MAX_LEN,
+            default,
+        )
+        return default
+    if value.lstrip().startswith("-"):
+        logger.warning(
+            "audio_input %r begins with '-'; falling back to %r", value, default
+        )
+        return default
+    # ASCII control characters (0x00-0x1F, 0x7F) have no place in a real audio
+    # device name and could be used to escape from a logged context or upset
+    # FFmpeg's stderr handling.
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        logger.warning(
+            "audio_input %r contains control characters; falling back to %r",
+            value,
+            default,
+        )
+        return default
+    return value
+
+
+def _coerce_output_dir(value: Any, default: str) -> str:  # noqa: PLR0911 — early returns per rejection reason are clearer than a flag/break ladder
+    """Validate a custom clip output directory loaded from settings.
+
+    Accepts an empty string (meaning "use the platform default") and absolute
+    local paths. A non-absolute path is ambiguous (relative to *what*?) and a
+    UNC path is a remote-mount footgun — opening one as a write target can
+    trigger an outbound SMB auth that leaks the user's NTLM hash. Either
+    pattern falls back to ``""`` so the engine uses :func:`app_paths().clips_dir`.
+    """
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        logger.warning("Invalid output_dir %r; falling back to %r", value, default)
+        return default
+    if not value:
+        return ""
+    # UNC paths begin with two separators on either Windows or POSIX style.
+    if value.startswith(("\\\\", "//")):
+        logger.warning(
+            "output_dir %r is a UNC path; falling back to the default location",
+            value,
+        )
+        return ""
+    try:
+        is_absolute = Path(value).expanduser().is_absolute()
+    except (OSError, ValueError) as exc:
+        logger.warning("output_dir %r could not be parsed (%s); ignoring", value, exc)
+        return ""
+    if not is_absolute:
+        logger.warning(
+            "output_dir %r is not absolute; falling back to the default location", value
+        )
+        return ""
+    return value
 
 
 def _coerce_encoder(value: Any) -> str:
