@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import subprocess
 
-from sclip.contracts import DeviceRegistry, Settings, encoder_by_codec
+from sclip.contracts import DeviceRegistry, Settings, encoder_by_codec, encoder_label
 from sclip.core.ffmpeg import FFmpegNotFoundError, run_ffmpeg
 
 logger = logging.getLogger(__name__)
@@ -28,16 +28,10 @@ logger = logging.getLogger(__name__)
 # libx264 is the universal software fallback and always succeeds.
 _ENCODER_PRIORITY: tuple[str, ...] = ("h264_nvenc", "h264_amf", "h264_qsv", "libx264")
 
-# Friendly names for the Settings screen. Codecs not listed fall back to the
-# raw codec string, which is still readable enough.
-_ENCODER_LABELS: dict[str, str] = {
-    "h264_nvenc": "NVIDIA NVENC (H.264)",
-    "hevc_nvenc": "NVIDIA NVENC (HEVC)",
-    "h264_amf": "AMD AMF (H.264)",
-    "hevc_amf": "AMD AMF (HEVC)",
-    "h264_qsv": "Intel Quick Sync (H.264)",
-    "libx264": "Software x264 (CPU)",
-}
+# ``encoder_label`` and ``_ENCODER_LABELS`` now live in ``sclip.contracts`` so
+# that the UI can import them without touching a core implementation module.
+# The import above re-exports ``encoder_label`` for any callers that reach it
+# via this module rather than directly via the contracts.
 
 # Recommended speed preset per encoder family. The hardware encoders are given
 # a balanced preset — they have the headroom — while the CPU encoder is kept
@@ -59,11 +53,6 @@ _RECOMMENDED_CRF: int = 21
 # sharing platform, and a sensible file size. Higher rates are available in
 # the Advanced settings for anyone who wants them.
 _RECOMMENDED_FPS: int = 60
-
-
-def encoder_label(codec: str) -> str:
-    """Return a human-friendly name for an encoder codec."""
-    return _ENCODER_LABELS.get(codec, codec)
 
 
 def _probe_encoder(codec: str) -> bool:

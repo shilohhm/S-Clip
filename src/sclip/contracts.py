@@ -8,6 +8,7 @@ long as the published shape does not change.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -141,6 +142,34 @@ def encoder_by_codec(codec: str) -> EncoderSpec | None:
     return None
 
 
+# Friendly display names for every encoder codec S-Clip knows about. Codecs
+# not listed here fall back to the raw codec string in :func:`encoder_label`,
+# which is still readable enough for an uncommon or future encoder.
+#
+# Kept in the contracts layer (rather than in ``core.hardware``) because the UI
+# needs these labels without any dependency on hardware-probing code. The
+# previous placement — inside the hardware module — was a layering violation:
+# the UI reached into a core *implementation* module for what is really pure,
+# portable data.
+_ENCODER_LABELS: dict[str, str] = {
+    "h264_nvenc": "NVIDIA NVENC (H.264)",
+    "hevc_nvenc": "NVIDIA NVENC (HEVC)",
+    "h264_amf": "AMD AMF (H.264)",
+    "hevc_amf": "AMD AMF (HEVC)",
+    "h264_qsv": "Intel Quick Sync (H.264)",
+    "libx264": "Software x264 (CPU)",
+}
+
+
+def encoder_label(codec: str) -> str:
+    """Return a human-friendly name for an encoder codec.
+
+    Falls back to the raw codec string for any codec not in :data:`_ENCODER_LABELS`,
+    so callers receive something readable even for future or third-party encoders.
+    """
+    return _ENCODER_LABELS.get(codec, codec)
+
+
 @dataclass(slots=True)
 class Settings:
     """User-editable application settings.
@@ -170,24 +199,15 @@ class Settings:
     auto_configure: bool = True
 
     def copy(self) -> Settings:
-        """Return an independent copy — used when the settings page begins editing."""
-        return Settings(
-            resolution=self.resolution,
-            fps=self.fps,
-            encoder=self.encoder,
-            preset=self.preset,
-            crf=self.crf,
-            audio_input=self.audio_input,
-            capture_audio=self.capture_audio,
-            capture_desktop_audio=self.capture_desktop_audio,
-            replay_buffer=self.replay_buffer,
-            replay_seconds=self.replay_seconds,
-            monitor=self.monitor,
-            clip_hotkey=self.clip_hotkey,
-            record_hotkey=self.record_hotkey,
-            output_dir=self.output_dir,
-            auto_configure=self.auto_configure,
-        )
+        """Return an independent copy — used when the settings page begins editing.
+
+        Implemented with :func:`dataclasses.replace` so adding a new field to
+        :class:`Settings` is automatically reflected here.  The old hand-written
+        field-by-field approach silently dropped any new field from the copy,
+        which would have caused the settings page to lose the value on every
+        edit cycle.
+        """
+        return dataclasses.replace(self)
 
 
 @runtime_checkable
@@ -243,3 +263,21 @@ class DeviceRegistry(Protocol):
     def monitors(self) -> list[Monitor]: ...
 
     def audio_devices(self) -> list[AudioDevice]: ...
+
+
+__all__ = [
+    "ENCODERS",
+    "_ENCODER_LABELS",
+    "AudioDevice",
+    "CaptureEngine",
+    "CaptureMode",
+    "CaptureState",
+    "DeviceRegistry",
+    "EncoderSpec",
+    "Hotkey",
+    "Monitor",
+    "Settings",
+    "SettingsStore",
+    "encoder_by_codec",
+    "encoder_label",
+]

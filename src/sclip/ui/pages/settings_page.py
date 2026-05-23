@@ -59,8 +59,9 @@ from sclip.contracts import (
     Settings,
     SettingsStore,
     encoder_by_codec,
+    encoder_label,
 )
-from sclip.core.hardware import encoder_label, recommend_settings
+from sclip.core.hardware import recommend_settings
 from sclip.paths import app_paths
 from sclip.ui.theme import SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS
 from sclip.ui.widgets import Card, HotkeyEdit, IconButton, SegmentedControl
