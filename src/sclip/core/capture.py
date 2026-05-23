@@ -235,31 +235,48 @@ class FFmpegCaptureEngine:
         """Worker-thread body for :meth:`save_replay_clip`.
 
         Runs the blocking stitch, then restores the engine state under the
-        lock (back to ``BUFFERING`` while the buffer rolls, or ``IDLE`` if it
-        has since stopped). The clip/error notification happens *outside* the
-        lock so a listener cannot deadlock against an engine call it makes in
-        response, and so a long fan-out does not hold up other threads.
+        lock. ``BUFFERING`` is restored only when the buffer is still rolling
+        *and* the buffer's own error path has not already moved the engine to
+        ``ERROR`` — clobbering ``ERROR`` back to ``BUFFERING`` here would lose
+        the failure the buffer just reported, and a second generic
+        ``_handle_error`` from this method would then double-fire every error
+        listener with a less specific message. The clip/error notification
+        happens *outside* the lock so a listener cannot deadlock against an
+        engine call it makes in response.
+
+        Any exception from the stitch — or from the state restoration — is
+        caught here and routed through ``_handle_error`` so a worker crash
+        cannot become a silent failure with nothing visible to the user.
+        Daemon threads do not propagate exceptions back to the parent, so
+        without this outer guard a raise would simply land on stderr.
         """
         saved: Path | None = None
         try:
-            saved = self._buffer.save_clip(destination)
-        finally:
-            with self._lock:
-                if self._buffer.is_running:
-                    self._set_state(CaptureState.BUFFERING)
-                # Only fall back to IDLE if nothing else moved the engine on
-                # (an error handler may have switched it to ERROR meanwhile).
-                elif self.state is CaptureState.SAVING:
-                    self._set_state(CaptureState.IDLE)
+            try:
+                saved = self._buffer.save_clip(destination)
+            finally:
+                with self._lock:
+                    # Leave ERROR alone — the buffer's own error handler has
+                    # already moved us there and fired the error listeners
+                    # with a specific message.
+                    if self.state is CaptureState.ERROR:
+                        pass
+                    elif self._buffer.is_running:
+                        self._set_state(CaptureState.BUFFERING)
+                    elif self.state is CaptureState.SAVING:
+                        self._set_state(CaptureState.IDLE)
+        except Exception:
+            logger.exception("Clip-save worker crashed")
+            self._handle_error("Could not save the replay clip.")
+            return
 
         if saved is not None:
             self._emit_clip_saved(saved)
-        else:
-            # save_clip returns None when the buffer had no segments to
-            # stitch, or when the stitch itself failed. Reporting it here
-            # (after the finally block above has otherwise restored BUFFERING)
-            # ensures the error state and message actually reach the listeners
-            # rather than being overwritten by the state restore.
+        elif self.state is not CaptureState.ERROR:
+            # ``save_clip`` returned ``None`` without the buffer reporting an
+            # error — most likely the buffer had no segments to stitch yet.
+            # Surface it the same way as any other failure, but without
+            # duplicating an error the buffer already announced.
             self._handle_error("Could not save the replay clip.")
 
     def reload_settings(self) -> None:

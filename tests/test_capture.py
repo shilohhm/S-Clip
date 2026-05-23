@@ -55,9 +55,18 @@ class _FakeRollingBuffer:
     the engine did not block on it.
     """
 
-    def __init__(self, directory: Path, *, stitch_seconds: float = 0.0) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        stitch_seconds: float = 0.0,
+        fail_via_handler: str | None = None,
+        raise_in_save: Exception | None = None,
+    ) -> None:
         self.directory = directory
         self._stitch_seconds = stitch_seconds
+        self._fail_via_handler = fail_via_handler
+        self._raise_in_save = raise_in_save
         self.is_running = False
         self._error_handler: object | None = None
         # Set on the thread that actually runs save_clip, so a test can prove
@@ -75,11 +84,24 @@ class _FakeRollingBuffer:
         self.is_running = False
 
     def save_clip(self, destination: Path) -> Path | None:
-        """Pretend to stitch a clip, slowly, then write the destination file."""
+        """Pretend to stitch a clip, then succeed, raise, or report an error.
+
+        The three modes exist to exercise the engine's worker-completion
+        paths: a clean success, an exception escape (R4 H2 regression), and
+        an internal failure that the buffer reports through its error
+        handler before returning ``None`` (R4 H1 regression).
+        """
         self.save_calls += 1
         self.save_thread_name = threading.current_thread().name
         if self._stitch_seconds:
             time.sleep(self._stitch_seconds)
+        if self._raise_in_save is not None:
+            raise self._raise_in_save
+        if self._fail_via_handler is not None:
+            handler = self._error_handler
+            if callable(handler):
+                handler(self._fail_via_handler)
+            return None
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"FAKE_CLIP\n")
         return destination
@@ -272,6 +294,101 @@ def test_save_replay_clip_is_a_no_op_when_not_buffering(
     assert fast_engine.state is CaptureState.IDLE
     fast_engine.save_replay_clip()
     assert fast_engine.state is CaptureState.IDLE
+
+
+def test_buffer_internal_failure_fires_exactly_one_error(
+    sandbox_paths: Path,
+) -> None:
+    """A buffer-reported stitch failure must produce a single error notification.
+
+    Regression for R4 H1: previously the worker's ``finally`` block clobbered
+    ``ERROR`` back to ``BUFFERING`` and then re-fired ``_handle_error`` with a
+    generic message, so a single failure produced two error listener calls
+    and a ``SAVING → ERROR → BUFFERING → ERROR`` state walk.
+    """
+    buffer = _FakeRollingBuffer(
+        sandbox_paths,
+        stitch_seconds=0.05,
+        fail_via_handler="Failed to stitch the replay buffer into a clip",
+    )
+    engine = FFmpegCaptureEngine(
+        _FakeSettingsStore(),
+        _FakeDeviceRegistry(),
+        buffer_factory=lambda _directory: buffer,
+    )
+
+    errors: list[str] = []
+    states: list[CaptureState] = []
+    notified = threading.Event()
+
+    def _on_error(message: str) -> None:
+        errors.append(message)
+        notified.set()
+
+    engine.add_error_listener(_on_error)
+    engine.add_state_listener(states.append)
+
+    try:
+        engine.start_replay_buffer()
+        engine.save_replay_clip()
+
+        # Wait long enough for the worker to finish all its work.
+        assert notified.wait(timeout=_NOTIFY_TIMEOUT_SECONDS)
+        # Give the worker a beat to run any extra (errantly duplicated) work
+        # — without this slack a buggy implementation could pass the count
+        # assertion below simply because the second notification has not
+        # arrived yet. Tuned generously relative to the fake's 50 ms stitch.
+        time.sleep(0.3)
+
+        assert errors == ["Failed to stitch the replay buffer into a clip"]
+        # The state machine must end at ERROR, with no spurious BUFFERING
+        # restoration after the buffer's error handler moved us there.
+        assert engine.state is CaptureState.ERROR
+        assert CaptureState.BUFFERING not in states[states.index(CaptureState.ERROR) :]
+    finally:
+        engine.shutdown()
+
+
+def test_a_worker_exception_routes_to_the_error_listener(
+    sandbox_paths: Path,
+) -> None:
+    """If the stitch raises, the worker must surface the failure to listeners.
+
+    Regression for R4 H2: previously an exception from inside ``save_clip``
+    escaped the daemon worker silently — the user pressed the hotkey and
+    saw nothing happen.
+    """
+    buffer = _FakeRollingBuffer(
+        sandbox_paths,
+        stitch_seconds=0.05,
+        raise_in_save=RuntimeError("simulated stitch failure"),
+    )
+    engine = FFmpegCaptureEngine(
+        _FakeSettingsStore(),
+        _FakeDeviceRegistry(),
+        buffer_factory=lambda _directory: buffer,
+    )
+
+    errors: list[str] = []
+    notified = threading.Event()
+
+    def _on_error(message: str) -> None:
+        errors.append(message)
+        notified.set()
+
+    engine.add_error_listener(_on_error)
+
+    try:
+        engine.start_replay_buffer()
+        engine.save_replay_clip()
+
+        assert notified.wait(timeout=_NOTIFY_TIMEOUT_SECONDS), (
+            "an exception from inside the stitch must reach the error listener"
+        )
+        assert errors == ["Could not save the replay clip."]
+        assert engine.state is CaptureState.ERROR
+    finally:
+        engine.shutdown()
 
 
 def test_a_second_save_while_one_is_in_flight_is_ignored(

@@ -491,8 +491,12 @@ class MainWindow(QMainWindow):
 
         self._refresh_hotkeys(previous, settings)
         self._refresh_tray_labels(settings)
-        self._reload_engine_if_supported()
+        # Refresh the capture page *before* asking the engine to reload — when
+        # the engine reload fires its state listener, the page must already
+        # hold the new ``Settings`` so the rendered status text reflects them
+        # rather than the previous values.
         self._refresh_capture_page(settings)
+        self._reload_engine_if_supported()
 
     def _refresh_hotkeys(self, previous: Settings, current: Settings) -> None:
         """Unregister the previous chord pair and install the new one."""
