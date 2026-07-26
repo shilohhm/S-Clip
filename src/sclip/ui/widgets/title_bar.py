@@ -60,7 +60,11 @@ class _WindowButton(QPushButton):
             # The close button glows white on its red hover fill; the others
             # simply brighten from the muted resting colour.
             if self.underMouse():
-                colour = QColor("#FFFFFF") if self._kind == "close" else QColor(THEME.text_primary)
+                colour = (
+                    QColor(THEME.text_on_danger)
+                    if self._kind == "close"
+                    else QColor(THEME.text_primary)
+                )
             else:
                 colour = QColor(THEME.text_secondary)
             pen = QPen(colour, 1.3)
@@ -165,9 +169,7 @@ class TitleBar(QWidget):
             window = self.window()
             # Record where the cursor sits relative to the window so the drag
             # keeps the window pinned to the pointer rather than jumping.
-            self._drag_offset = (
-                event.globalPosition().toPoint() - window.frameGeometry().topLeft()
-            )
+            self._drag_offset = event.globalPosition().toPoint() - window.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -200,7 +202,7 @@ class TitleBar(QWidget):
         try:
             from sclip.ui.assets.icons import icon
 
-            pixmap = icon("clip", THEME.accent_text, 18).pixmap(18, 18)
+            pixmap = icon("brand", THEME.accent_primary, 18).pixmap(18, 18)
         except Exception:
             logger.debug("Brand mark icon unavailable", exc_info=True)
             pixmap = QPixmap()

@@ -153,7 +153,7 @@ class _ThumbnailSignals(QObject):
     :class:`pathlib.Path` across the thread boundary is not consistent.
     """
 
-    ready = Signal(str)   # clip path -- the cached thumbnail now exists
+    ready = Signal(str)  # clip path -- the cached thumbnail now exists
     failed = Signal(str)  # clip path -- no thumbnail could be produced
 
 
@@ -599,9 +599,7 @@ class LibraryPage(QWidget):
         layout.setContentsMargins(SPACING_XL, SPACING_XL, SPACING_XL, SPACING_XL)
         layout.setSpacing(SPACING_XXS)
 
-        message = QLabel(
-            "No clips yet — your saved clips will appear here.", panel
-        )
+        message = QLabel("No clips yet — your saved clips will appear here.", panel)
         message.setProperty("role", "muted")
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -674,9 +672,7 @@ class LibraryPage(QWidget):
             self._grid.addWidget(tile, row, column)
             # Selection state survives a reflow because the tile object is
             # reused; re-assert it so the outline stays on the right tile.
-            tile.set_selected(
-                self._selected_clip is not None and tile.clip == self._selected_clip
-            )
+            tile.set_selected(self._selected_clip is not None and tile.clip == self._selected_clip)
 
     def _column_count(self) -> int:
         """Columns that fit the current width, at least one."""

@@ -174,9 +174,7 @@ class SettingsPage(QWidget):
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(
-            SPACING_XL, SPACING_XL, SPACING_XL, SPACING_XL
-        )
+        content_layout.setContentsMargins(SPACING_XL, SPACING_XL, SPACING_XL, SPACING_XL)
         content_layout.setSpacing(SPACING_LG)
 
         # Page title.
@@ -266,9 +264,7 @@ class SettingsPage(QWidget):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(SPACING_XS)
 
-        initial = (
-            _MODE_AUTOMATIC if self._working.auto_configure else _MODE_ADVANCED
-        )
+        initial = _MODE_AUTOMATIC if self._working.auto_configure else _MODE_ADVANCED
         self._mode_toggle = SegmentedControl(
             ["Automatic", "Advanced"], current_index=initial, parent=parent
         )
@@ -327,9 +323,7 @@ class SettingsPage(QWidget):
 
         # Re-detect action: a low-emphasis ghost button is right here — the
         # primary action on the page is still Save in the footer.
-        redetect_button = IconButton(
-            text="Re-detect hardware", role="ghost", parent=card
-        )
+        redetect_button = IconButton(text="Re-detect hardware", role="ghost", parent=card)
         redetect_button.clicked.connect(self._on_redetect_hardware)
         redetect_row = QHBoxLayout()
         redetect_row.setContentsMargins(0, 0, 0, 0)
@@ -430,9 +424,7 @@ class SettingsPage(QWidget):
         self._size_input(self._quality_spin)
         self._quality_spin.valueChanged.connect(self._on_quality_changed)
         self._add_field_row(grid, 5, "Quality", self._quality_spin)
-        self._add_spanning_widget(
-            grid, 6, self._make_hint_label("lower = better quality")
-        )
+        self._add_spanning_widget(grid, 6, self._make_hint_label("lower = better quality"))
 
         # Monitor.
         self._monitor_combo = QComboBox(card)
@@ -504,9 +496,7 @@ class SettingsPage(QWidget):
         self._add_spanning_widget(grid, 1, self._errors.clip_hotkey)
 
         self._record_hotkey_widget = HotkeyEdit(parent=card)
-        self._record_hotkey_widget.hotkey_changed.connect(
-            self._on_record_hotkey_changed
-        )
+        self._record_hotkey_widget.hotkey_changed.connect(self._on_record_hotkey_changed)
         self._add_field_row(grid, 2, "Toggle recording", self._record_hotkey_widget)
         self._add_spanning_widget(grid, 3, self._errors.record_hotkey)
 
@@ -533,9 +523,7 @@ class SettingsPage(QWidget):
         change_button.clicked.connect(self._on_change_output_dir)
         folder_layout.addWidget(change_button)
 
-        reset_button = IconButton(
-            text="Use default", role="ghost", parent=folder_widget
-        )
+        reset_button = IconButton(text="Use default", role="ghost", parent=folder_widget)
         reset_button.clicked.connect(self._on_reset_output_dir)
         folder_layout.addWidget(reset_button)
 
@@ -775,9 +763,7 @@ class SettingsPage(QWidget):
         """
         self._working.auto_configure = index == _MODE_AUTOMATIC
         self._apply_mode_visibility(index)
-        self._mode_caption.setText(
-            _MODE_CAPTIONS.get(index, _MODE_CAPTIONS[_MODE_ADVANCED])
-        )
+        self._mode_caption.setText(_MODE_CAPTIONS.get(index, _MODE_CAPTIONS[_MODE_ADVANCED]))
         self._update_save_state()
 
     def _apply_mode_visibility(self, index: int) -> None:
@@ -796,16 +782,12 @@ class SettingsPage(QWidget):
     def _refresh_recommended_card(self) -> None:
         """Mirror the working copy into the read-only summary value labels."""
         working = self._working
-        self._recommended_values["Encoder"].setText(
-            encoder_label(working.encoder)
-        )
+        self._recommended_values["Encoder"].setText(encoder_label(working.encoder))
         self._recommended_values["Display"].setText(working.monitor)
         self._recommended_values["Resolution"].setText(working.resolution)
         self._recommended_values["Frame rate"].setText(f"{working.fps} fps")
         self._recommended_values["Quality"].setText(f"CQ {working.crf}")
-        self._recommended_values["Microphone"].setText(
-            working.audio_input or "Not captured"
-        )
+        self._recommended_values["Microphone"].setText(working.audio_input or "Not captured")
         self._recommended_values["Desktop audio"].setText(
             "System sound (WASAPI loopback)" if working.capture_desktop_audio else "Off"
         )
@@ -870,9 +852,7 @@ class SettingsPage(QWidget):
         when the index genuinely moves, so the caption and card visibility
         are refreshed here explicitly to cover the no-move case as well.
         """
-        target = (
-            _MODE_AUTOMATIC if self._working.auto_configure else _MODE_ADVANCED
-        )
+        target = _MODE_AUTOMATIC if self._working.auto_configure else _MODE_ADVANCED
         self._mode_toggle.set_current_index(target)
         self._apply_mode_visibility(target)
         self._mode_caption.setText(_MODE_CAPTIONS[target])

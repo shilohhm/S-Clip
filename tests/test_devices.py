@@ -23,12 +23,10 @@ from sclip.core.devices import SystemDeviceRegistry, _parse_dshow_devices
 # name we want to ignore. We include an output-side section header so the
 # parser has to use section context to tell input mics from playback devices.
 _ALT_MIC1 = (
-    "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}"
-    "\\wave_{F2C6C6B0-CC30-4862-A5D6-13B14EFFE777}"
+    "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\\wave_{F2C6C6B0-CC30-4862-A5D6-13B14EFFE777}"
 )
 _ALT_MIC2 = (
-    "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}"
-    "\\wave_{6BFD0BBB-1C7A-4F8C-AF44-7C0E5E7E7000}"
+    "@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\\wave_{6BFD0BBB-1C7A-4F8C-AF44-7C0E5E7E7000}"
 )
 _ALT_SPK = "@device_sw_{0.0.0.00000000}.{12345678-90AB-CDEF-1234-567890ABCDEF}"
 _REAL_DSHOW_OUTPUT: str = (
@@ -83,7 +81,7 @@ def test_parse_dshow_devices_returns_empty_for_empty_input() -> None:
 def test_parse_dshow_devices_deduplicates_repeated_entries() -> None:
     """Some FFmpeg builds repeat the same device entry — only one should reach us."""
     blob = (
-        '[dshow @ 0x1] DirectShow audio devices\n'
+        "[dshow @ 0x1] DirectShow audio devices\n"
         '[dshow @ 0x1] "Mic A" (audio)\n'
         '[dshow @ 0x1]   Alternative name "@device_cm_xxx"\n'
         '[dshow @ 0x1] "Mic A" (audio)\n'

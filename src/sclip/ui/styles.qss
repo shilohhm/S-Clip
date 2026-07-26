@@ -41,9 +41,11 @@ QLabel {
 }
 
 QLabel[role="display"] {
+    font-family: %(display_family)s;
     font-size: %(display_size)spx;
     font-weight: %(display_weight)s;
     color: %(text_primary)s;
+    letter-spacing: -0.4px;
 }
 
 QLabel[role="title"] {
@@ -107,12 +109,12 @@ QPushButton {
 }
 
 QPushButton:hover {
-    background-color: #232734;
+    background-color: %(surface_hover)s;
     border-color: %(border_strong)s;
 }
 
 QPushButton:pressed {
-    background-color: #181B24;
+    background-color: %(surface_pressed)s;
 }
 
 QPushButton:focus {
@@ -125,22 +127,17 @@ QPushButton:disabled {
     border-color: %(border)s;
 }
 
-/* -- Primary CTA: a violet button with a gentle vertical gradient ---- */
+/* -- Primary CTA ----------------------------------------------------- */
 QPushButton[role="primary"] {
-    background-color: qlineargradient(
-        x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 %(accent_primary_hover)s,
-        stop: 1 %(accent_primary)s);
-    color: #FFFFFF;
-    border: 1px solid %(accent_primary_pressed)s;
+    background-color: %(accent_primary)s;
+    color: %(text_on_accent)s;
+    border: 1px solid %(accent_primary)s;
     font-weight: 700;
 }
 
 QPushButton[role="primary"]:hover {
-    background-color: qlineargradient(
-        x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #9F8BFF,
-        stop: 1 %(accent_primary_hover)s);
+    background-color: %(accent_primary_hover)s;
+    border-color: %(accent_primary_hover)s;
 }
 
 QPushButton[role="primary"]:pressed {
@@ -155,20 +152,15 @@ QPushButton[role="primary"]:disabled {
 
 /* -- Danger: the Stop button ---------------------------------------- */
 QPushButton[role="danger"] {
-    background-color: qlineargradient(
-        x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 %(danger_hover)s,
-        stop: 1 %(danger)s);
-    color: #FFFFFF;
-    border: 1px solid %(danger_pressed)s;
+    background-color: %(danger)s;
+    color: %(text_on_danger)s;
+    border: 1px solid %(danger)s;
     font-weight: 700;
 }
 
 QPushButton[role="danger"]:hover {
-    background-color: qlineargradient(
-        x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #FF8088,
-        stop: 1 %(danger_hover)s);
+    background-color: %(danger_hover)s;
+    border-color: %(danger_hover)s;
 }
 
 QPushButton[role="danger"]:pressed {
@@ -185,11 +177,11 @@ QPushButton[role="ghost"] {
 
 QPushButton[role="ghost"]:hover {
     color: %(text_primary)s;
-    background-color: rgba(124, 92, 255, 0.10);
+    background-color: %(accent_wash)s;
 }
 
 QPushButton[role="ghost"]:pressed {
-    background-color: rgba(124, 92, 255, 0.18);
+    background-color: %(accent_wash_strong)s;
 }
 
 QPushButton[role="ghost"]:disabled {
@@ -215,7 +207,7 @@ QTextEdit {
     border-radius: %(radius_sm)spx;
     padding: %(space_xs)spx %(space_sm)spx;
     selection-background-color: %(accent_primary)s;
-    selection-color: #FFFFFF;
+    selection-color: %(text_on_accent)s;
     min-height: 22px;
 }
 
@@ -314,7 +306,7 @@ QComboBox QAbstractItemView {
     border-radius: %(radius_md)spx;
     padding: %(space_xxs)spx;
     selection-background-color: %(accent_primary)s;
-    selection-color: #FFFFFF;
+    selection-color: %(text_on_accent)s;
     outline: 0;
 }
 
@@ -325,7 +317,7 @@ QComboBox QAbstractItemView::item {
 }
 
 QComboBox QAbstractItemView::item:hover {
-    background-color: rgba(124, 92, 255, 0.18);
+    background-color: %(accent_wash_strong)s;
 }
 
 
@@ -395,7 +387,7 @@ QMenu::item {
 }
 
 QMenu::item:selected {
-    background-color: rgba(124, 92, 255, 0.20);
+    background-color: %(accent_wash_strong)s;
 }
 
 QMenu::separator {
@@ -427,7 +419,7 @@ QScrollBar::handle:vertical {
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: #454B5C;
+    background-color: %(border_hover)s;
 }
 
 QScrollBar::add-line:vertical,
@@ -452,7 +444,7 @@ QScrollBar::handle:horizontal {
 }
 
 QScrollBar::handle:horizontal:hover {
-    background-color: #454B5C;
+    background-color: %(border_hover)s;
 }
 
 QScrollBar::add-line:horizontal,
@@ -479,10 +471,11 @@ QLabel#TitleBarMark {
 }
 
 QLabel#TitleBarLabel {
-    color: %(text_secondary)s;
-    font-size: %(body_size)spx;
-    font-weight: 700;
-    letter-spacing: 0.3px;
+    color: %(text_primary)s;
+    font-family: %(display_family)s;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
     background: transparent;
 }
 
@@ -494,11 +487,11 @@ QPushButton#WinBtnClose {
 }
 
 QPushButton#WinBtn:hover {
-    background-color: rgba(255, 255, 255, 0.07);
+    background-color: %(neutral_wash)s;
 }
 
 QPushButton#WinBtn:pressed {
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: %(surface_pressed)s;
 }
 
 QPushButton#WinBtnClose:hover {
@@ -549,13 +542,13 @@ QPushButton#SidebarItem {
 }
 
 QPushButton#SidebarItem:hover {
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: %(neutral_wash)s;
     color: %(text_primary)s;
 }
 
 QPushButton#SidebarItem:checked,
 QPushButton#SidebarItem[selected="true"] {
-    background-color: rgba(124, 92, 255, 0.14);
+    background-color: %(accent_wash)s;
     color: %(text_primary)s;
 }
 
@@ -601,6 +594,59 @@ QFrame#Divider {
     border: none;
     max-height: 1px;
     min-height: 1px;
+}
+
+
+/* ====================================================================
+ *  Capture instrument
+ * ==================================================================== */
+
+QLabel#Eyebrow {
+    color: %(text_muted)s;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    background: transparent;
+}
+
+QFrame#CaptureStage {
+    background-color: %(surface)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_lg)spx;
+}
+
+QFrame#CaptureReadout {
+    background-color: %(inset)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_md)spx;
+}
+
+QFrame#ShortcutHint {
+    background-color: %(surface_elevated)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_sm)spx;
+}
+
+QLabel#ShortcutLabel {
+    color: %(text_secondary)s;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    background: transparent;
+}
+
+QLabel#ShortcutKey {
+    color: %(accent_text)s;
+    font-family: %(mono_family)s;
+    font-size: %(caption_size)spx;
+    font-weight: 700;
+    background: transparent;
+}
+
+QFrame#ProfileBar {
+    background-color: %(surface)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius_md)spx;
 }
 
 

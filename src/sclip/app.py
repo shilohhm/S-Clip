@@ -58,9 +58,7 @@ logger = logging.getLogger(__name__)
 _SINGLETON_KEY: str = "sclip-singleton"
 _SINGLETON_SOCKET_NAME: str = "sclip-singleton-socket"
 _RAISE_MESSAGE: bytes = b"raise\n"
-_SINGLETON_BYPASS_FLAGS: frozenset[str] = frozenset(
-    {"--no-single-instance", "--dev-no-singleton"}
-)
+_SINGLETON_BYPASS_FLAGS: frozenset[str] = frozenset({"--no-single-instance", "--dev-no-singleton"})
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     # constructed twice. We therefore set the high-DPI policy attribute
     # *before* creating QApplication, then run the singleton check using the
     # same QApplication that the main window will use.
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
 
     qt_app = QApplication(args)
     qt_app.setApplicationName("S-Clip")

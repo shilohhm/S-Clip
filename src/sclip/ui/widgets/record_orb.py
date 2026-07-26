@@ -28,6 +28,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
+    QKeyEvent,
     QLinearGradient,
     QMouseEvent,
     QPainter,
@@ -68,6 +69,7 @@ class RecordOrb(QWidget):
         self.setFixedSize(_ORB_EXTENT, _ORB_EXTENT)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMouseTracking(True)
 
         self._accent = QColor(THEME.accent_primary)
@@ -192,6 +194,43 @@ class RecordOrb(QWidget):
             self.update()
             self.clicked.emit()
 
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Arm keyboard activation without firing repeatedly on key repeat."""
+        if (
+            self._interactive
+            and not event.isAutoRepeat()
+            and event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        ):
+            self._pressed = True
+            self.update()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:
+        """Activate on key release, mirroring the mouse interaction."""
+        if (
+            self._pressed
+            and self._interactive
+            and not event.isAutoRepeat()
+            and event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        ):
+            self._pressed = False
+            self.update()
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyReleaseEvent(event)
+
+    def focusInEvent(self, event: object) -> None:
+        self.update()
+        super().focusInEvent(event)  # type: ignore[arg-type]
+
+    def focusOutEvent(self, event: object) -> None:
+        self._pressed = False
+        self.update()
+        super().focusOutEvent(event)  # type: ignore[arg-type]
+
     # -- painting -----------------------------------------------------------
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -203,6 +242,7 @@ class RecordOrb(QWidget):
 
             self._paint_glow(painter, centre, side)
             self._paint_ring(painter, centre, side)
+            self._paint_focus_ring(painter, centre, side)
             self._paint_orb_body(painter, centre, side)
             self._paint_glyph(painter, centre, side)
         finally:
@@ -239,9 +279,7 @@ class RecordOrb(QWidget):
         """Paint the ring — steady, breathing, sweeping or spinning."""
         radius = side * 0.38
         width = max(3.0, side * 0.022)
-        ring_rect = QRectF(
-            centre.x() - radius, centre.y() - radius, radius * 2, radius * 2
-        )
+        ring_rect = QRectF(centre.x() - radius, centre.y() - radius, radius * 2, radius * 2)
 
         # The dim base ring is always present so the orb keeps its shape even
         # when no arc is lit.
@@ -268,6 +306,24 @@ class RecordOrb(QWidget):
             painter.setPen(QPen(lit, width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawEllipse(centre, radius, radius)
 
+    def _paint_focus_ring(self, painter: QPainter, centre: QPointF, side: float) -> None:
+        """Draw a clear keyboard focus indicator outside the animated ring."""
+        if not self.hasFocus() or not self._interactive:
+            return
+        colour = QColor(self._accent)
+        colour.setAlphaF(0.85)
+        radius = side * 0.435
+        painter.setPen(
+            QPen(
+                colour,
+                2.0,
+                Qt.PenStyle.DashLine,
+                Qt.PenCapStyle.RoundCap,
+            )
+        )
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(centre, radius, radius)
+
     def _paint_arc(self, painter: QPainter, rect: QRectF, width: float, *, span_deg: float) -> None:
         """Draw the moving accent arc used by the sweep and spin animations."""
         lit = QColor(self._accent)
@@ -289,9 +345,7 @@ class RecordOrb(QWidget):
         if self._pressed:
             top, bottom = bottom, top
 
-        gradient = QLinearGradient(
-            centre.x(), centre.y() - radius, centre.x(), centre.y() + radius
-        )
+        gradient = QLinearGradient(centre.x(), centre.y() - radius, centre.x(), centre.y() + radius)
         gradient.setColorAt(0.0, top)
         gradient.setColorAt(1.0, bottom)
         painter.setBrush(gradient)
@@ -314,9 +368,7 @@ class RecordOrb(QWidget):
             painter.drawEllipse(centre, radius, radius)
         elif self._glyph == GLYPH_SQUARE:
             half = side * 0.072
-            square = QRectF(
-                centre.x() - half, centre.y() - half, half * 2, half * 2
-            )
+            square = QRectF(centre.x() - half, centre.y() - half, half * 2, half * 2)
             painter.drawRoundedRect(square, half * 0.32, half * 0.32)
         # GLYPH_SPINNER intentionally draws no centre mark — the spinning ring
         # already reads as "working".

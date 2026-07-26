@@ -38,6 +38,15 @@ _RECORD: Final[str] = (
     "</svg>"
 )
 
+_BRAND: Final[str] = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+    ' stroke="{colour}" stroke-width="1.8" stroke-linecap="round">'
+    '<circle cx="12" cy="12" r="8" opacity=".28"/>'
+    '<path d="M5.65 16.86A8 8 0 1 0 7.9 5.3"/>'
+    '<circle cx="12" cy="12" r="2.4" fill="{colour}" stroke="none"/>'
+    "</svg>"
+)
+
 _STOP: Final[str] = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">'
     '<rect x="6" y="6" width="12" height="12" rx="2" fill="{colour}"/>'
@@ -126,6 +135,7 @@ _HEADPHONES: Final[str] = (
 )
 
 _ICONS: Final[dict[str, str]] = {
+    "brand": _BRAND,
     "record": _RECORD,
     "stop": _STOP,
     "clip": _CLIP,

@@ -116,9 +116,7 @@ class _OutboundPipe:
 
     def unblock_wait(self) -> None:
         """Open and drop a client handle so a blocked :meth:`wait_for_reader` returns."""
-        client = self._k32.CreateFileW(
-            self._name, _GENERIC_READ, 0, None, _OPEN_EXISTING, 0, None
-        )
+        client = self._k32.CreateFileW(self._name, _GENERIC_READ, 0, None, _OPEN_EXISTING, 0, None)
         if client not in (0, _INVALID_HANDLE_VALUE):
             self._k32.CloseHandle(client)
 
@@ -127,9 +125,7 @@ class _OutboundPipe:
         if self._handle is None:
             return False
         written = wintypes.DWORD(0)
-        ok = self._k32.WriteFile(
-            self._handle, data, len(data), ctypes.byref(written), None
-        )
+        ok = self._k32.WriteFile(self._handle, data, len(data), ctypes.byref(written), None)
         return bool(ok)
 
     def close(self) -> None:

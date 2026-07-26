@@ -129,9 +129,7 @@ class _FakeDeviceRegistry:
     """Device registry exposing one monitor and no audio devices."""
 
     def monitors(self) -> list[Monitor]:
-        return [
-            Monitor(name="Monitor 1", x=0, y=0, width=1920, height=1080, is_primary=True)
-        ]
+        return [Monitor(name="Monitor 1", x=0, y=0, width=1920, height=1080, is_primary=True)]
 
     def audio_devices(self) -> list[AudioDevice]:
         return []

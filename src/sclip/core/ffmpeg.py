@@ -466,11 +466,7 @@ def _ddagrab_video_chain(plan: CapturePlan, *, label: str) -> str:
     A CPU encoder cannot read the Direct3D surfaces ddagrab emits, so for
     those we append ``hwdownload`` to copy each frame into system memory.
     """
-    chain = (
-        f"ddagrab=output_idx={plan.monitor_index}"
-        f":framerate={plan.fps}"
-        ":draw_mouse=1"
-    )
+    chain = f"ddagrab=output_idx={plan.monitor_index}:framerate={plan.fps}:draw_mouse=1"
     if not encoder_is_gpu_native(plan.encoder):
         chain += ",hwdownload,format=bgra"
     return f"{chain}[{label}]"
@@ -485,9 +481,7 @@ def _amix_chain(audio_indices: Sequence[int], *, label: str) -> str:
     """
     inputs = "".join(f"[{index}:a]" for index in audio_indices)
     return (
-        f"{inputs}amix=inputs={len(audio_indices)}"
-        ":duration=longest:dropout_transition=0"
-        f"[{label}]"
+        f"{inputs}amix=inputs={len(audio_indices)}:duration=longest:dropout_transition=0[{label}]"
     )
 
 
@@ -517,9 +511,7 @@ def _gdigrab_input(plan: CapturePlan) -> list[str]:
     ]
 
 
-def _build_audio_inputs(
-    audio: AudioConfig, first_index: int
-) -> tuple[list[str], list[int]]:
+def _build_audio_inputs(audio: AudioConfig, first_index: int) -> tuple[list[str], list[int]]:
     """Build audio ``-i`` blocks, returning argv and a list of stream indices."""
     argv: list[str] = []
     indices: list[int] = []
@@ -527,9 +519,12 @@ def _build_audio_inputs(
 
     if audio.has_microphone:
         argv += [
-            "-f", "dshow",
-            "-thread_queue_size", _AUDIO_THREAD_QUEUE,
-            "-i", f"audio={audio.microphone}",
+            "-f",
+            "dshow",
+            "-thread_queue_size",
+            _AUDIO_THREAD_QUEUE,
+            "-i",
+            f"audio={audio.microphone}",
         ]
         indices.append(next_index)
         next_index += 1
@@ -537,11 +532,16 @@ def _build_audio_inputs(
         # Desktop audio is raw PCM the desktop-audio pump streams through a
         # named pipe; FFmpeg needs to be told the format up front.
         argv += [
-            "-f", "s16le",
-            "-ar", str(audio.desktop_rate),
-            "-ac", str(audio.desktop_channels),
-            "-thread_queue_size", _AUDIO_THREAD_QUEUE,
-            "-i", audio.desktop_pipe,
+            "-f",
+            "s16le",
+            "-ar",
+            str(audio.desktop_rate),
+            "-ac",
+            str(audio.desktop_channels),
+            "-thread_queue_size",
+            _AUDIO_THREAD_QUEUE,
+            "-i",
+            audio.desktop_pipe,
         ]
         indices.append(next_index)
 

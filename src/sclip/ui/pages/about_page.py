@@ -370,9 +370,7 @@ class AboutPage(QWidget):
         return card
 
     @staticmethod
-    def _build_diagnostic_row(
-        parent: QWidget, key: str, value: str
-    ) -> tuple[QHBoxLayout, QLabel]:
+    def _build_diagnostic_row(parent: QWidget, key: str, value: str) -> tuple[QHBoxLayout, QLabel]:
         """One key/value row: a label key and a monospace value."""
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
