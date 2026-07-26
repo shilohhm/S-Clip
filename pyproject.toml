@@ -9,7 +9,7 @@ description = "A lightweight Windows screen recorder with a true rolling replay 
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "S-Clip Contributors" }]
+authors = [{ name = "Shiloh Malka" }]
 keywords = ["screen-recorder", "replay-buffer", "ffmpeg", "windows", "clip"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -41,6 +41,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "mypy>=1.10",
+    "build>=1.2",
 ]
 
 [project.scripts]
@@ -56,10 +57,6 @@ Issues = "https://github.com/shilohhm/S-Clip/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sclip"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/sclip/ui/assets" = "sclip/ui/assets"
-"src/sclip/ui/styles.qss" = "sclip/ui/styles.qss"
 
 [tool.ruff]
 line-length = 100

@@ -23,8 +23,9 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QPixmap
+from PySide6.QtGui import QDesktopServices, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -80,6 +81,11 @@ _TILE_WIDTH = 188
 # The two segmented-control options, in display order.
 _MODE_OPTIONS: tuple[str, ...] = ("Manual recording", "Replay buffer")
 _MODE_BY_INDEX: tuple[CaptureMode, ...] = (CaptureMode.MANUAL, CaptureMode.REPLAY_BUFFER)
+
+# The page sits beside a 218px navigation rail. Below this content width, the
+# instrument and readout stack so the documented 960px window minimum never
+# needs a horizontal scrollbar.
+_COMPACT_BREAKPOINT = 860
 
 
 def _format_elapsed(seconds: float) -> str:
@@ -227,8 +233,12 @@ class CapturePage(QWidget):
         self._settings_store = settings_store
         self._settings: Settings = settings_store.load()
 
-        # Which capture flavour the user has selected — purely local view state.
-        self._mode: CaptureMode = CaptureMode.MANUAL
+        # Start in the mode the user has enabled. Competitive players should
+        # land on the replay control they configured, not a contradictory
+        # manual-recording tab while the buffer is already running.
+        self._mode: CaptureMode = (
+            CaptureMode.REPLAY_BUFFER if self._settings.replay_buffer else CaptureMode.MANUAL
+        )
         self._last_error: str = ""
         # Wall-clock start of the current recording, for the elapsed readout.
         self._session_started: float | None = None
@@ -262,7 +272,7 @@ class CapturePage(QWidget):
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         root.addWidget(scroll)
 
         content = QWidget(scroll)
@@ -271,8 +281,8 @@ class CapturePage(QWidget):
         content_layout.setSpacing(SPACING_LG)
 
         content_layout.addLayout(self._build_header_row())
-        content_layout.addWidget(self._build_hero_card())
-        content_layout.addWidget(self._build_captured_card())
+        content_layout.addWidget(self._build_capture_stage())
+        content_layout.addWidget(self._build_profile_bar())
         content_layout.addWidget(self._build_recent_card())
         content_layout.addStretch(1)
 
@@ -293,84 +303,186 @@ class CapturePage(QWidget):
         row.addWidget(self._status_pill, 0, Qt.AlignmentFlag.AlignVCenter)
         return row
 
-    def _build_hero_card(self) -> Card:
-        """The hero — mode selector, the record orb, and its state copy."""
-        card = Card(parent=self)
-        body = card.body_layout()
-        body.setSpacing(SPACING_LG)
+    def _build_capture_stage(self) -> QFrame:
+        """Build the primary instrument stage and its live readout."""
+        stage = QFrame(self)
+        stage.setObjectName("CaptureStage")
+        stage.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        stage.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        # -- Mode selector, centred above the orb -------------------------
-        self._mode_selector = SegmentedControl(list(_MODE_OPTIONS), parent=card)
+        self._stage_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, stage)
+        self._stage_layout.setContentsMargins(
+            SPACING_XL,
+            SPACING_LG,
+            SPACING_XL,
+            SPACING_XL,
+        )
+        self._stage_layout.setSpacing(SPACING_XL)
+        self._stage_layout.addWidget(self._build_capture_instrument(stage), 3)
+        self._capture_readout = self._build_capture_readout(stage)
+        self._stage_layout.addWidget(self._capture_readout, 2)
+        return stage
+
+    def _build_capture_instrument(self, parent: QWidget) -> QWidget:
+        """Build the mode selector and physical record control."""
+        instrument = QWidget(parent)
+        instrument_layout = QVBoxLayout(instrument)
+        instrument_layout.setContentsMargins(0, 0, 0, 0)
+        instrument_layout.setSpacing(SPACING_MD)
+
+        mode_label = QLabel("CAPTURE MODE", instrument)
+        mode_label.setObjectName("Eyebrow")
+        instrument_layout.addWidget(mode_label, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        current_index = _MODE_BY_INDEX.index(self._mode)
+        self._mode_selector = SegmentedControl(
+            list(_MODE_OPTIONS),
+            current_index=current_index,
+            parent=instrument,
+        )
         self._mode_selector.setMaximumWidth(_MODE_SELECTOR_WIDTH)
         self._mode_selector.current_changed.connect(self._on_mode_changed)
-        body.addLayout(_centred(self._mode_selector))
+        instrument_layout.addLayout(_centred(self._mode_selector))
 
-        # -- The orb ------------------------------------------------------
-        self._orb = RecordOrb(card)
+        self._orb = RecordOrb(instrument)
+        self._orb.setAccessibleName("Capture control")
         self._orb.clicked.connect(self._on_orb_clicked)
-        body.addLayout(_centred(self._orb))
+        instrument_layout.addLayout(_centred(self._orb))
 
-        # -- State copy ---------------------------------------------------
-        self._headline = QLabel("Ready to record", card)
+        self._orb_action_label = QLabel("CLICK TO RECORD", instrument)
+        self._orb_action_label.setObjectName("Eyebrow")
+        instrument_layout.addWidget(
+            self._orb_action_label,
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
+        return instrument
+
+    def _build_capture_readout(self, parent: QWidget) -> QFrame:
+        """Build the state copy, keyboard hint, and secondary action."""
+        readout = QFrame(parent)
+        readout.setObjectName("CaptureReadout")
+        readout.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        readout.setMinimumWidth(300)
+        readout.setMaximumWidth(380)
+        readout_layout = QVBoxLayout(readout)
+        readout_layout.setContentsMargins(SPACING_LG, SPACING_LG, SPACING_LG, SPACING_LG)
+        readout_layout.setSpacing(SPACING_SM)
+
+        readout_label = QLabel("LIVE STATE", readout)
+        readout_label.setObjectName("Eyebrow")
+        readout_layout.addWidget(readout_label)
+
+        self._headline = QLabel("Ready to record", readout)
         self._headline.setProperty("role", "display")
-        self._headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        body.addWidget(self._headline)
+        self._headline.setWordWrap(True)
+        readout_layout.addWidget(self._headline)
 
-        self._caption = QLabel("", card)
+        self._caption = QLabel("", readout)
         self._caption.setProperty("role", "caption")
-        self._caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._caption.setWordWrap(True)
-        body.addWidget(self._caption)
+        readout_layout.addWidget(self._caption)
+        readout_layout.addStretch(1)
 
-        # -- Secondary action (only shown while the buffer is armed) ------
+        shortcut = QFrame(readout)
+        shortcut.setObjectName("ShortcutHint")
+        shortcut.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        shortcut_layout = QHBoxLayout(shortcut)
+        shortcut_layout.setContentsMargins(SPACING_SM, SPACING_XS, SPACING_SM, SPACING_XS)
+        shortcut_layout.setSpacing(SPACING_SM)
+
+        self._shortcut_label = QLabel("START RECORDING", shortcut)
+        self._shortcut_label.setObjectName("ShortcutLabel")
+        shortcut_layout.addWidget(self._shortcut_label)
+        shortcut_layout.addStretch(1)
+
+        self._shortcut_key = QLabel(self._settings.record_hotkey.to_display(), shortcut)
+        self._shortcut_key.setObjectName("ShortcutKey")
+        shortcut_layout.addWidget(self._shortcut_key)
+        readout_layout.addWidget(shortcut)
+
         self._secondary_button = IconButton(
             text="Disarm replay buffer",
             icon=icon("stop", THEME.text_secondary, 14),
             role="ghost",
-            parent=card,
+            parent=readout,
         )
         self._secondary_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self._secondary_button.clicked.connect(self._on_secondary_clicked)
         self._secondary_button.setVisible(False)
-        body.addLayout(_centred(self._secondary_button))
+        readout_layout.addWidget(self._secondary_button, 0, Qt.AlignmentFlag.AlignLeft)
+        return readout
 
-        return card
+    def _build_profile_bar(self) -> QFrame:
+        """Build a compact, one-line summary of the active capture profile."""
+        profile = QFrame(self)
+        profile.setObjectName("ProfileBar")
+        profile.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
-    def _build_captured_card(self) -> Card:
-        """A card of three chips summarising what the engine will capture."""
-        card = Card(title="What's being captured", parent=self)
-        body = card.body_layout()
-        body.setSpacing(SPACING_MD)
+        self._profile_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, profile)
+        self._profile_layout.setContentsMargins(
+            SPACING_MD,
+            SPACING_SM,
+            SPACING_SM,
+            SPACING_SM,
+        )
+        self._profile_layout.setSpacing(SPACING_SM)
+
+        heading = QVBoxLayout()
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(SPACING_XXS)
+        title = QLabel("CAPTURE PROFILE", profile)
+        title.setObjectName("Eyebrow")
+        heading.addWidget(title)
+        subtitle = QLabel("Applied to the next clip", profile)
+        subtitle.setProperty("role", "muted")
+        heading.addWidget(subtitle)
+        self._profile_layout.addLayout(heading)
 
         chip_row = QHBoxLayout()
         chip_row.setContentsMargins(0, 0, 0, 0)
         chip_row.setSpacing(SPACING_SM)
 
-        monitor_chip, self._monitor_value = _chip("MONITOR", card)
-        audio_chip, self._audio_value = _chip("AUDIO", card)
-        quality_chip, self._quality_value = _chip("QUALITY", card)
+        monitor_chip, self._monitor_value = _chip("MONITOR", profile)
+        audio_chip, self._audio_value = _chip("AUDIO", profile)
+        quality_chip, self._quality_value = _chip("QUALITY", profile)
         for chip in (monitor_chip, audio_chip, quality_chip):
             chip_row.addWidget(chip)
-        chip_row.addStretch(1)
-        body.addLayout(chip_row)
+        self._profile_layout.addLayout(chip_row)
+        self._profile_layout.addStretch(1)
 
         edit_button = IconButton(
-            text="Edit in settings",
+            text="Edit",
             icon=icon("settings", THEME.text_secondary, 15),
             role="ghost",
-            parent=card,
+            parent=profile,
         )
         edit_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         edit_button.clicked.connect(lambda: self.request_navigate.emit(NAV_SETTINGS))
-
-        edit_row = QHBoxLayout()
-        edit_row.setContentsMargins(0, 0, 0, 0)
-        edit_row.addWidget(edit_button)
-        edit_row.addStretch(1)
-        body.addLayout(edit_row)
+        self._profile_layout.addWidget(edit_button)
 
         self._refresh_captured_info()
-        return card
+        return profile
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Recompose dense capture controls at the compact breakpoint."""
+        super().resizeEvent(event)
+        compact = event.size().width() < _COMPACT_BREAKPOINT
+
+        stage_layout = getattr(self, "_stage_layout", None)
+        readout = getattr(self, "_capture_readout", None)
+        if stage_layout is not None and readout is not None:
+            stage_layout.setDirection(
+                QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
+            )
+            readout.setMinimumWidth(0 if compact else 300)
+            readout.setMaximumWidth(16_777_215 if compact else 380)
+
+        profile_layout = getattr(self, "_profile_layout", None)
+        if profile_layout is not None:
+            profile_layout.setDirection(
+                QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
+            )
 
     def _build_recent_card(self) -> Card:
         """A row of recent-clip tiles plus a link into the library."""
@@ -479,6 +591,7 @@ class CapturePage(QWidget):
         after a mode switch, on first paint, on a timer tick, or from the
         engine bridge.
         """
+        self._sync_mode_to_state(state)
         self._status_pill.set_state(state)
 
         # Keep the elapsed timer running only while a recording is live.
@@ -496,9 +609,32 @@ class CapturePage(QWidget):
         headline, caption = self._state_copy(state)
         self._headline.setText(headline)
         self._caption.setText(caption)
+        shortcut_label, shortcut_key = self._shortcut_copy(state)
+        self._shortcut_label.setText(shortcut_label)
+        self._shortcut_key.setText(shortcut_key)
+        self._orb_action_label.setText(self._orb_action_copy(state))
+        self._orb.setAccessibleDescription(f"{headline}. {caption}")
 
         # The disarm companion only makes sense while the buffer is rolling.
         self._secondary_button.setVisible(state is CaptureState.BUFFERING)
+
+    def _sync_mode_to_state(self, state: CaptureState) -> None:
+        """Keep the selector truthful and lock it while capture is active."""
+        forced_mode: CaptureMode | None = None
+        if state is CaptureState.BUFFERING:
+            forced_mode = CaptureMode.REPLAY_BUFFER
+        elif state is CaptureState.RECORDING:
+            forced_mode = CaptureMode.MANUAL
+
+        if forced_mode is not None and forced_mode is not self._mode:
+            self._mode = forced_mode
+            old_blocked = self._mode_selector.blockSignals(True)
+            try:
+                self._mode_selector.set_current_index(_MODE_BY_INDEX.index(forced_mode))
+            finally:
+                self._mode_selector.blockSignals(old_blocked)
+
+        self._mode_selector.setEnabled(state in (CaptureState.IDLE, CaptureState.ERROR))
 
     def _apply_orb_visual(self, state: CaptureState) -> None:
         """Drive the orb's colour, glyph and animation from the engine state."""
@@ -538,27 +674,61 @@ class CapturePage(QWidget):
 
         if state is CaptureState.RECORDING:
             elapsed = time.monotonic() - (self._session_started or time.monotonic())
-            return "Recording", f"{_format_elapsed(elapsed)} elapsed  ·  click the orb to stop"
+            return (
+                "Recording",
+                f"{_format_elapsed(elapsed)} elapsed. Your session is writing to disk.",
+            )
         if state is CaptureState.BUFFERING:
             return (
-                "Replay buffer armed",
-                f"The last {seconds} seconds are always ready — click the orb to save a clip.",
+                f"{seconds} seconds live",
+                "The replay buffer is armed. Save the moment without leaving the game.",
             )
         if state is CaptureState.SAVING:
-            return "Saving your clip", "Stitching the footage into one smooth file."
+            return "Building clip", "Laying down one clean, constant-rate timeline."
         if state is CaptureState.ERROR:
             return (
-                "Something went wrong",
-                self._last_error or "The capture engine reported an error.",
+                "Capture interrupted",
+                self._last_error or "The capture engine stopped. Retry when ready.",
             )
 
         # IDLE — the copy depends on the selected mode.
         if self._mode is CaptureMode.REPLAY_BUFFER:
             return (
-                "Replay buffer is off",
-                f"Arm it to keep the last {seconds} seconds ready to clip at any moment.",
+                "Replay is disarmed",
+                f"Arm the buffer to keep the previous {seconds} seconds ready.",
             )
-        return "Ready to record", "Click the orb, or press your hotkey, to start."
+        return "Ready on command", "Start a full recording from here or from your hotkey."
+
+    def _shortcut_copy(self, state: CaptureState) -> tuple[str, str]:
+        """Return the action label and key shown in the readout rail."""
+        if state is CaptureState.RECORDING:
+            return "STOP RECORDING", self._settings.record_hotkey.to_display()
+        if state is CaptureState.BUFFERING:
+            return (
+                f"SAVE LAST {max(1, int(self._settings.replay_seconds))} SECONDS",
+                self._settings.clip_hotkey.to_display(),
+            )
+        if state is CaptureState.SAVING:
+            return "FINALISING MP4", "BUSY"
+        if state is CaptureState.ERROR:
+            return "RETRY CAPTURE", "CLICK CONTROL"
+        if self._mode is CaptureMode.REPLAY_BUFFER:
+            return "ARM REPLAY", "CLICK CONTROL"
+        return "TOGGLE RECORDING", self._settings.record_hotkey.to_display()
+
+    def _orb_action_copy(self, state: CaptureState) -> str:
+        """Return the short physical-action label beneath the orb."""
+        if state is CaptureState.RECORDING:
+            return "CLICK TO STOP"
+        if state is CaptureState.BUFFERING:
+            return "CLICK TO SAVE"
+        if state is CaptureState.SAVING:
+            return "FINALISING"
+        if state is CaptureState.ERROR:
+            return "CLICK TO RETRY"
+        if self._mode is CaptureMode.REPLAY_BUFFER:
+            return "CLICK TO ARM"
+        return "CLICK TO RECORD"
 
     def _on_clip_saved(self, path: object) -> None:
         """Engine dropped a clip on disk — re-emit upwards and refresh Card 3."""

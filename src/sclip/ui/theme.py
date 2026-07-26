@@ -35,9 +35,9 @@ SPACING_XXL: int = 48
 
 
 # -- Corner radius scale ---------------------------------------------------
-RADIUS_SM: int = 8      # buttons, inputs, small chips
-RADIUS_MD: int = 12     # nested panels, popups
-RADIUS_LG: int = 16     # cards
+RADIUS_SM: int = 8  # buttons, inputs, small chips
+RADIUS_MD: int = 12  # nested panels, popups
+RADIUS_LG: int = 16  # cards
 RADIUS_PILL: int = 999  # full pill (status indicator) -- any large value works
 
 
@@ -52,7 +52,7 @@ class TypeRamp:
 
     size_px: int
     weight: int
-    family: str = "'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif"
+    family: str = "'Figtree', 'Segoe UI Variable', 'Segoe UI', sans-serif"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,47 +63,61 @@ class Theme:
     the application has started painting; a theme swap should build a fresh
     Theme and replace :data:`THEME`, never mutate the existing instance.
 
-    The palette is a quiet, near-black dark scheme. Surfaces climb a gentle
-    elevation ladder — ``bg`` for the window, ``surface`` for cards, ``inset``
-    for recessed wells like input fields — so panels read as distinct planes
-    rather than one flat sheet of grey. Violet is the single accent, used
-    sparingly: a focus ring here, one primary button there, never a wall of
-    colour.
+    The palette is a competition-grade graphite scheme. Surfaces climb a
+    restrained elevation ladder while a single high-visibility signal colour
+    marks focus, buffering, and primary actions. Recording red remains
+    semantic rather than decorative.
     """
 
     # -- Surfaces, low to high ------------------------------------------
-    bg: str = "#0B0D12"               # window background, deepest plane
-    bg_alt: str = "#0D0F15"           # sidebar — a hair lifted off the window
-    surface: str = "#15181F"          # cards
-    surface_elevated: str = "#1B1F29"  # hovered cards, popups, raised segments
-    inset: str = "#0A0B10"            # recessed wells: inputs, thumbnails
-    border: str = "#23262F"           # subtle 1px outlines
-    border_strong: str = "#343845"    # outlines that need to be noticed
+    bg: str = "#0B0D0E"  # window background, deepest plane
+    bg_alt: str = "#101315"  # sidebar — a hair lifted off the window
+    surface: str = "#161A1D"  # cards and instrument stage
+    surface_elevated: str = "#1D2226"  # hovered cards, popups, raised segments
+    inset: str = "#080A0B"  # recessed wells: inputs, thumbnails
+    border: str = "#292F33"  # subtle 1px outlines
+    border_strong: str = "#3D454B"  # outlines that need to be noticed
+    border_hover: str = "#515C63"
 
     # -- Text, brightest to dimmest -------------------------------------
-    text_primary: str = "#ECEDF0"
-    text_secondary: str = "#969BA8"
-    text_muted: str = "#5C6170"       # timestamps, hints, the quietest text
-    text_disabled: str = "#454957"
+    text_primary: str = "#F1F4F2"
+    text_secondary: str = "#A3ACA7"
+    text_muted: str = "#6D7771"  # timestamps, hints, the quietest text
+    text_disabled: str = "#4E5651"
 
     # -- Accent / status palette ----------------------------------------
-    accent_primary: str = "#7C5CFF"    # electric violet -- CTAs, focus rings
-    accent_primary_hover: str = "#9079FF"
-    accent_primary_pressed: str = "#6A4DEB"
-    accent_text: str = "#AD9CFF"       # violet legible as text on a dark surface
-    accent_secondary: str = "#36D2E6"  # cyan -- info, the buffering state
+    accent_primary: str = "#D8F45B"  # signal lime -- CTAs, focus, buffering
+    accent_primary_hover: str = "#E4FA82"
+    accent_primary_pressed: str = "#B8D13F"
+    accent_text: str = "#E3F98A"
+    accent_secondary: str = "#D8F45B"
+    accent_wash: str = "rgba(216, 244, 91, 0.10)"
+    accent_wash_strong: str = "rgba(216, 244, 91, 0.18)"
 
-    success: str = "#41D17F"
-    warning: str = "#F5A623"
-    danger: str = "#FF4D5A"            # recording dot, the Stop button
-    danger_hover: str = "#FF6670"
-    danger_pressed: str = "#E63B48"
+    success: str = "#73DC8C"
+    warning: str = "#F0B85C"
+    danger: str = "#FF5D66"  # recording dot, the Stop button
+    danger_hover: str = "#FF7A81"
+    danger_pressed: str = "#DC434D"
+
+    # -- Interaction surfaces / foregrounds -----------------------------
+    surface_hover: str = "#242A2E"
+    surface_pressed: str = "#121619"
+    neutral_wash: str = "rgba(241, 244, 242, 0.05)"
+    text_on_accent: str = "#111510"
+    text_on_danger: str = "#FFF4F3"
 
     # -- Type ramp ------------------------------------------------------
     # Default factories are used because a frozen dataclass cannot assign to
     # its own fields in __post_init__; the ramp objects are built once at
     # construction and never mutated thereafter.
-    display: TypeRamp = field(default_factory=lambda: TypeRamp(size_px=24, weight=700))
+    display: TypeRamp = field(
+        default_factory=lambda: TypeRamp(
+            size_px=26,
+            weight=600,
+            family="'Unbounded', 'Figtree', 'Segoe UI', sans-serif",
+        )
+    )
     title: TypeRamp = field(default_factory=lambda: TypeRamp(size_px=15, weight=600))
     body: TypeRamp = field(default_factory=lambda: TypeRamp(size_px=14, weight=400))
     label: TypeRamp = field(default_factory=lambda: TypeRamp(size_px=13, weight=500))

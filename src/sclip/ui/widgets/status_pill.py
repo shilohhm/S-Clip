@@ -57,7 +57,7 @@ def _state_visuals() -> dict[CaptureState, _StatusVisual]:
         CaptureState.RECORDING: _StatusVisual(
             label="RECORDING",
             dot_colour=THEME.danger,
-            pulse_duration_ms=700,   # fast, urgent pulse
+            pulse_duration_ms=700,  # fast, urgent pulse
         ),
         CaptureState.SAVING: _StatusVisual(
             label="SAVING",

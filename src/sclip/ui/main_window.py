@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from sclip.contracts import CaptureEngine, DeviceRegistry, Hotkey, Settings, SettingsStore
 from sclip.paths import app_paths
+from sclip.ui.fonts import install_application_fonts
 from sclip.ui.theme import load_stylesheet
 
 if TYPE_CHECKING:
@@ -84,6 +85,10 @@ class MainWindow(QMainWindow):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+
+        # Load the packaged faces before resolving the stylesheet so every
+        # widget sees deterministic typography, including in headless CI.
+        install_application_fonts()
 
         # Hold every collaborator by name so handlers below can reach them
         # without dragging the whole bootstrap context around with them.
@@ -378,9 +383,7 @@ class MainWindow(QMainWindow):
         self._tray_clip_action.triggered.connect(self._on_clip_requested)
         menu.addAction(self._tray_clip_action)
 
-        self._tray_record_action = QAction(
-            self._record_action_label(self._current_settings), menu
-        )
+        self._tray_record_action = QAction(self._record_action_label(self._current_settings), menu)
         self._tray_record_action.triggered.connect(self._on_record_requested)
         menu.addAction(self._tray_record_action)
 
@@ -424,9 +427,7 @@ class MainWindow(QMainWindow):
         self._engine_clip_saved.connect(
             self._on_engine_clip_saved, Qt.ConnectionType.QueuedConnection
         )
-        self._engine_error.connect(
-            self._on_engine_error, Qt.ConnectionType.QueuedConnection
-        )
+        self._engine_error.connect(self._on_engine_error, Qt.ConnectionType.QueuedConnection)
         self._engine.add_clip_listener(self._engine_clip_saved.emit)
         self._engine.add_error_listener(self._engine_error.emit)
 
@@ -618,9 +619,7 @@ class MainWindow(QMainWindow):
                 self._engine.start_manual_recording()
         except Exception:
             logger.exception("Toggling manual recording failed")
-            self._show_tray_message(
-                "S-Clip", "Recording toggle failed -- see the log for details."
-            )
+            self._show_tray_message("S-Clip", "Recording toggle failed -- see the log for details.")
 
     @Slot()
     def _on_tray_show_requested(self) -> None:
