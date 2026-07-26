@@ -1,0 +1,37 @@
+# Product design principles
+
+### Users
+
+S-Clip is for competitive PC gamers who want to capture the moment that just
+happened without interrupting play. They use it during focused, latency-sensitive
+sessions and expect the recorder to stay out of the way until they need it.
+
+The core jobs are to keep a reliable rolling replay buffer, save a clip instantly
+from a global hotkey, record longer sessions on demand, and find recent captures
+without leaving the application.
+
+### Brand Personality
+
+Focused, premium, performance-led. S-Clip should feel calm under pressure,
+technically credible, and as deliberate as competition hardware. The interface
+uses short, direct language and avoids hype.
+
+### Aesthetic Direction
+
+A dark, precision-instrument interface inspired by tournament peripherals and
+motorsport telemetry rather than neon gaming dashboards. Graphite surfaces,
+high-contrast typography, and a restrained signal accent make state changes
+immediately legible. Motion is brief and functional. The product should feel
+fast before the user presses anything.
+
+Avoid generic purple-to-cyan gradients, decorative glow, dense “cyber” chrome,
+and card-heavy dashboard layouts. The application should remain usable on a
+standard Windows gaming setup and respect reduced-motion preferences.
+
+### Design Principles
+
+1. Make the current capture state unmistakable at a glance.
+2. Keep the primary action reachable without pulling attention away from play.
+3. Use restraint to communicate performance: fewer colours, fewer words, faster feedback.
+4. Expose the serious engineering behind the simple interaction.
+5. Treat keyboard access, error recovery, and empty states as first-class product states.

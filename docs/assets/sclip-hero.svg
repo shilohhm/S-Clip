@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">S-Clip</title>
+  <desc id="desc">Competition-grade rolling replay capture for Windows.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#292F33" stroke-width="1"/>
+    </pattern>
+    <clipPath id="frame">
+      <rect width="1600" height="520" rx="28"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="1600" height="520" fill="#0B0D0E"/>
+    <rect width="1600" height="520" fill="url(#grid)" opacity=".42"/>
+    <path d="M0 430H1600" stroke="#292F33"/>
+
+    <g transform="translate(104 88)">
+      <circle cx="34" cy="34" r="30" fill="none" stroke="#3D454B" stroke-width="6"/>
+      <path d="M10 52A30 30 0 1 0 18 10" fill="none" stroke="#D8F45B" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="34" cy="34" r="11" fill="#D8F45B"/>
+    </g>
+
+    <text x="104" y="228" fill="#F1F4F2" font-family="Unbounded, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-5">S-CLIP</text>
+    <text x="108" y="292" fill="#A3ACA7" font-family="Figtree, Arial, sans-serif" font-size="25" font-weight="500">
+      Competition-grade rolling replay capture for Windows.
+    </text>
+    <text x="108" y="346" fill="#D8F45B" font-family="Consolas, monospace" font-size="17" font-weight="700" letter-spacing="2">
+      CATCH THE PLAY. KEEP YOUR FRAMES.
+    </text>
+
+    <g transform="translate(104 458)" fill="#A3ACA7" font-family="Consolas, monospace" font-size="14" font-weight="700" letter-spacing="1.5">
+      <text x="0" y="0">PYTHON 3.10+</text>
+      <text x="172" y="0">PYSIDE6</text>
+      <text x="286" y="0">FFMPEG</text>
+      <text x="390" y="0">WINDOWS 10/11</text>
+    </g>
+
+    <g transform="translate(1180 260)">
+      <circle r="206" fill="#101315" stroke="#292F33" stroke-width="2"/>
+      <circle r="144" fill="none" stroke="#3D454B" stroke-width="22"/>
+      <path d="M-113 89A144 144 0 1 0-72-124" fill="none" stroke="#D8F45B" stroke-width="25" stroke-linecap="round"/>
+      <circle r="52" fill="#D8F45B"/>
+      <text x="0" y="250" text-anchor="middle" fill="#6D7771" font-family="Consolas, monospace" font-size="13" font-weight="700" letter-spacing="2">
+        REPLAY BUFFER / ARMED
+      </text>
+    </g>
+  </g>
+</svg>
