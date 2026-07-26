@@ -358,14 +358,12 @@ def fake_ffmpeg_on_path(
     wrapper = bin_dir / ("ffmpeg.cmd" if sys.platform == "win32" else "ffmpeg")
     if sys.platform == "win32":
         wrapper.write_text(
-            "@echo off\r\n"
-            f'"{sys.executable}" "{fake_ffmpeg_binary}" %*\r\n',
+            f'@echo off\r\n"{sys.executable}" "{fake_ffmpeg_binary}" %*\r\n',
             encoding="utf-8",
         )
     else:
         wrapper.write_text(
-            "#!/bin/sh\n"
-            f'exec "{sys.executable}" "{fake_ffmpeg_binary}" "$@"\n',
+            f'#!/bin/sh\nexec "{sys.executable}" "{fake_ffmpeg_binary}" "$@"\n',
             encoding="utf-8",
         )
         wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

@@ -80,9 +80,7 @@ class JsonSettingsStore:
             return Settings()
 
         if not isinstance(data, dict):
-            logger.warning(
-                "Settings file at %s is not a JSON object; using defaults", self._path
-            )
+            logger.warning("Settings file at %s is not a JSON object; using defaults", self._path)
             return Settings()
 
         return _settings_from_dict(data)
@@ -233,9 +231,7 @@ def _coerce_int(value: Any, default: int, lo: int, hi: int, field_name: str) -> 
             logger.warning("Invalid %s %r; falling back to %d", field_name, value, default)
         return default
     if as_int < lo or as_int > hi:
-        logger.warning(
-            "%s value %d outside %d..%d; clamping", field_name, as_int, lo, hi
-        )
+        logger.warning("%s value %d outside %d..%d; clamping", field_name, as_int, lo, hi)
         return max(lo, min(hi, as_int))
     return as_int
 
@@ -288,9 +284,7 @@ def _coerce_audio_input(value: Any, default: str) -> str:  # noqa: PLR0911 — e
         )
         return default
     if value.lstrip().startswith("-"):
-        logger.warning(
-            "audio_input %r begins with '-'; falling back to %r", value, default
-        )
+        logger.warning("audio_input %r begins with '-'; falling back to %r", value, default)
         return default
     # ASCII control characters (0x00-0x1F, 0x7F) have no place in a real audio
     # device name and could be used to escape from a logged context or upset
@@ -334,9 +328,7 @@ def _coerce_output_dir(value: Any, default: str) -> str:  # noqa: PLR0911 — ea
         logger.warning("output_dir %r could not be parsed (%s); ignoring", value, exc)
         return ""
     if not is_absolute:
-        logger.warning(
-            "output_dir %r is not absolute; falling back to the default location", value
-        )
+        logger.warning("output_dir %r is not absolute; falling back to the default location", value)
         return ""
     return value
 
@@ -346,9 +338,7 @@ def _coerce_encoder(value: Any) -> str:
     if isinstance(value, str) and value in _VALID_ENCODERS:
         return value
     if value is not None:
-        logger.warning(
-            "Unknown encoder %r; falling back to %s", value, _DEFAULT_ENCODER
-        )
+        logger.warning("Unknown encoder %r; falling back to %s", value, _DEFAULT_ENCODER)
     return _DEFAULT_ENCODER
 
 
@@ -366,9 +356,7 @@ def _coerce_preset(encoder: str, value: Any) -> str:
     # the first preset the spec declares.
     fallback = _DEFAULT_PRESET if _DEFAULT_PRESET in spec.presets else spec.presets[0]
     if value is not None:
-        logger.warning(
-            "Preset %r not valid for %s; falling back to %s", value, encoder, fallback
-        )
+        logger.warning("Preset %r not valid for %s; falling back to %s", value, encoder, fallback)
     return fallback
 
 
