@@ -67,3 +67,31 @@ application could not itself produce — the point of both scripts is that the
 README shows the app as it really is. In particular, do not swap the scripted
 engine for a live capture: that would put whatever was on your screen into a
 public repository.
+
+## Packaging
+
+The Windows installer is built in two steps — PyInstaller freezes the app, Inno
+Setup wraps it — both driven by one script:
+
+```powershell
+winget install JRSoftware.InnoSetup
+python scripts/build_windows_installer.py
+```
+
+Output lands in `build/installer`. `--freeze-only` and `--installer-only` run
+the halves separately, and `--refresh-icon` regenerates `icon.ico` from the
+source SVG.
+
+Releases are cut by tagging; [`release.yml`](./.github/workflows/release.yml)
+does the rest, and refuses to publish if the tag disagrees with
+`src/sclip/version.py`.
+
+Two things to check by hand after any packaging change, because neither is
+covered by the test suite:
+
+- **Launch the frozen build**, not just the source one. Missing assets and
+  hidden imports only fail once frozen.
+- **Uninstall while S-Clip is running.** It is a tray app, so that is the normal
+  case rather than the edge case, and it is where the installer has already been
+  wrong twice: once leaving orphaned files behind, once aborting the uninstall
+  entirely.

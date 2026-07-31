@@ -1,0 +1,130 @@
+name: Release
+
+# Publishes the Windows installer. Tag a commit to cut a release:
+#
+#     git tag v2.0.0 && git push origin v2.0.0
+#
+# The workflow can also be run by hand from the Actions tab, which builds and
+# uploads the installer as a run artifact without publishing a release — useful
+# for checking a packaging change before committing to a version number.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  installer:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      # The tag is the thing people download; if it disagrees with the version
+      # baked into the executable, the release is lying about what it contains.
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $packageVersion = python -c "import sys; sys.path.insert(0, 'src'); from sclip.version import __version__; print(__version__)"
+          $tagVersion = "${{ github.ref_name }}".TrimStart('v')
+          Write-Output "package: $packageVersion   tag: $tagVersion"
+          if ($packageVersion -ne $tagVersion) {
+            throw "Tag $tagVersion does not match sclip.version $packageVersion. Update src/sclip/version.py or retag."
+          }
+
+      # Guard the release path with the same checks CI runs, so a broken build
+      # can never be the one that reaches a download button.
+      - name: Verify before packaging
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m mypy src
+          python -m pytest -m "not slow" -q
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build the installer
+        run: python scripts/build_windows_installer.py
+
+      # A frozen build that cannot start is the classic packaging failure, and
+      # it is invisible until somebody downloads it. Launch the real executable
+      # and confirm it is still alive, then read its own log back.
+      - name: Smoke-test the frozen application
+        shell: pwsh
+        run: |
+          $exe = "build/dist/S-Clip/S-Clip.exe"
+          $log = "$env:APPDATA/S-Clip/S-Clip/logs/sclip.log"
+          Remove-Item $log -ErrorAction SilentlyContinue
+          $proc = Start-Process -FilePath $exe -ArgumentList "--no-single-instance" -PassThru
+          Start-Sleep -Seconds 20
+          $proc.Refresh()
+          if ($proc.HasExited) {
+            if (Test-Path $log) { Get-Content $log }
+            throw "The frozen application exited on startup (code $($proc.ExitCode))."
+          }
+          Stop-Process -Id $proc.Id -Force
+          Write-Output "--- application log ---"
+          if (Test-Path $log) { Get-Content $log } else { throw "The application wrote no log." }
+
+      - name: Checksum the installer
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem build/installer/*.exe | Select-Object -First 1
+          $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($setup.Name)" | Out-File -FilePath "build/installer/SHA256SUMS.txt" -Encoding ascii
+          Write-Output "$hash  $($setup.Name)"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sclip-windows-installer
+          path: |
+            build/installer/*.exe
+            build/installer/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          ## Install
+
+          Download the installer below and run it. It installs for the current
+          user only, so there is no administrator prompt.
+
+          **The installer is not code-signed.** Windows SmartScreen will show a
+          "Windows protected your PC" warning on first run — choose **More info**
+          then **Run anyway**. Verify the download against ``SHA256SUMS.txt`` if
+          you would rather check it yourself.
+
+          **FFmpeg is required.** S-Clip drives FFmpeg to capture and encode; the
+          installer will tell you if it is missing. Install it with:
+
+          ``winget install Gyan.FFmpeg``
+          "@
+          gh release create "${{ github.ref_name }}" `
+            (Get-ChildItem build/installer/*.exe).FullName `
+            build/installer/SHA256SUMS.txt `
+            --title "S-Clip ${{ github.ref_name }}" `
+            --notes $notes

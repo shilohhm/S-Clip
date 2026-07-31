@@ -95,15 +95,34 @@ small audio/video duration differences at each segment boundary can produce
 visible timing seams. S-Clip spends a few seconds building one constant-rate
 timeline so the saved clip plays cleanly.
 
-## Quick start
+## Install
 
-### Requirements
+Download the latest installer from
+[Releases](https://github.com/shilohhm/S-Clip/releases) and run it. It installs
+for the current user, so there is no administrator prompt, and it leaves your
+clips and settings alone if you later uninstall.
 
-- Windows 10 or 11
-- Python 3.10–3.13
-- FFmpeg 4.0 or newer available on `PATH`
+You also need FFmpeg, which S-Clip drives to capture and encode:
 
-Clone and install:
+```powershell
+winget install Gyan.FFmpeg
+```
+
+The installer checks for FFmpeg and says so if it is missing. Without it the
+interface still opens and the About page explains the problem, but nothing can
+be recorded.
+
+> **The installer is not signed.** Code signing needs a certificate issued
+> against a verified identity, and this project does not have one. Windows
+> SmartScreen will therefore show *"Windows protected your PC"* the first time
+> you run it: choose **More info**, then **Run anyway**. If you would rather
+> check the download yourself, each release ships a `SHA256SUMS.txt` beside the
+> installer. Saying this plainly seems better than letting the warning come as a
+> surprise.
+
+### Running from source
+
+Requires Windows 10 or 11, Python 3.10–3.13, and FFmpeg on `PATH`.
 
 ```powershell
 git clone https://github.com/shilohhm/S-Clip.git
@@ -111,23 +130,16 @@ cd S-Clip
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install .
-```
-
-Launch without a console window:
-
-```powershell
 sclip-gui
 ```
 
-For development, install the quality tooling:
+For development, install the quality tooling with `python -m pip install -e ".[dev]"`.
 
-```powershell
-python -m pip install -e ".[dev]"
-```
-
-S-Clip can also use a bundled FFmpeg build during local development. Place it
-at `ffmpeg-<version>-essentials_build/bin/ffmpeg.exe`; the directory is ignored
-by Git and never shipped in the source repository.
+S-Clip also picks up FFmpeg placed beside it, which is how the portable layout
+works: put the binary at `ffmpeg\bin\ffmpeg.exe` next to `S-Clip.exe` (or, in a
+checkout, at the repository root) and it will be preferred over whatever is on
+`PATH`. Those directories are ignored by Git and never shipped in the source
+repository.
 
 ## Use
 
@@ -197,9 +209,18 @@ compatibility tests, wheel builds, and packaged-asset verification on Windows.
 ## Project status
 
 S-Clip 2.0 is in beta. The capture engine, rolling replay buffer, desktop audio
-path, settings migration, and desktop interface are implemented. Distribution
-is currently source/wheel based; a signed Windows installer is the next major
-release milestone.
+path, settings migration, and desktop interface are implemented, and ship as a
+per-user Windows installer built and published by
+[`release.yml`](./.github/workflows/release.yml) on a version tag.
+
+The installer is unsigned, which is the honest remaining gap rather than a
+planned feature: signing needs a code-signing certificate tied to a verified
+identity, so it waits on one being obtained rather than on any work in this
+repository. [`packaging/sclip.iss`](./packaging/sclip.iss) already carries the
+`SignTool` hook, commented, for the day there is a certificate to point it at.
+FFmpeg is a prerequisite rather than a bundled dependency; redistributing a GPL
+build alongside an MIT application raises licensing questions that a one-line
+`winget` install avoids entirely.
 
 ## Contributing and licence
 
