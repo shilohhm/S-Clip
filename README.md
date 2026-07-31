@@ -238,9 +238,9 @@ compatibility tests, wheel builds, and packaged-asset verification on Windows.
 
 ## Project status
 
-S-Clip 2.0 is in beta. The capture engine, rolling replay buffer, desktop audio
-path, settings migration, and desktop interface are implemented, and ship as a
-per-user Windows installer built and published by
+S-Clip 2.1 is in beta. The capture engine, rolling replay buffer, desktop audio
+path, hardware benchmark, settings migration, and desktop interface are
+implemented, and ship as a per-user Windows installer built and published by
 [`release.yml`](./.github/workflows/release.yml) on a version tag.
 
 The installer is unsigned, which is the honest remaining gap rather than a
