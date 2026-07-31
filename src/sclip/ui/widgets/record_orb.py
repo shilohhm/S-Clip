@@ -55,7 +55,15 @@ ANIM_SWEEP = "sweep"  # a bright arc circles slowly — the buffer is rolling
 ANIM_SPIN = "spin"  # a short arc circles quickly — saving a clip
 
 # The orb claims a generous square so the glow has room to fall off softly.
-_ORB_EXTENT: int = 248
+ORB_EXTENT_DEFAULT: int = 248
+
+# A tighter square for narrow windows, where the readout stacks above the
+# instrument and vertical space becomes the scarce resource rather than
+# horizontal.
+ORB_EXTENT_COMPACT: int = 168
+
+# Below this the ring weight and centre glyph stop reading as a control.
+_ORB_MIN_EXTENT: int = 96
 
 
 class RecordOrb(QWidget):
@@ -66,7 +74,7 @@ class RecordOrb(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("RecordOrb")
-        self.setFixedSize(_ORB_EXTENT, _ORB_EXTENT)
+        self.setFixedSize(ORB_EXTENT_DEFAULT, ORB_EXTENT_DEFAULT)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -97,6 +105,21 @@ class RecordOrb(QWidget):
         self._phase_anim.setLoopCount(-1)
 
     # -- public API ---------------------------------------------------------
+
+    def set_extent(self, extent: int) -> None:
+        """Resize the orb's square and repaint.
+
+        Every dimension in :meth:`paintEvent` is derived from the widget's own
+        size, so the control scales without any further work. The capture page
+        shrinks it when the window is too narrow for the side-by-side layout,
+        which is what keeps the save action above the fold at the documented
+        minimum window size.
+        """
+        side = max(_ORB_MIN_EXTENT, int(extent))
+        if side == self.width() and side == self.height():
+            return
+        self.setFixedSize(side, side)
+        self.update()
 
     def set_visual(self, *, accent: str, glyph: str, animation: str, interactive: bool) -> None:
         """Set everything about the orb's appearance in one atomic call.

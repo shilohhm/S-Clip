@@ -643,6 +643,26 @@ QLabel#ShortcutKey {
     background: transparent;
 }
 
+/* Live telemetry rows inside the capture readout. The label is quiet and
+ * tracked-out like the other eyebrows; the value is monospaced so a figure
+ * that ticks once a second does not jitter its own column width. */
+
+QLabel#StatLabel {
+    color: %(text_muted)s;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    background: transparent;
+}
+
+QLabel#StatValue {
+    color: %(text_secondary)s;
+    font-family: %(mono_family)s;
+    font-size: %(caption_size)spx;
+    font-weight: 600;
+    background: transparent;
+}
+
 QFrame#ProfileBar {
     background-color: %(surface)s;
     border: 1px solid %(border)s;

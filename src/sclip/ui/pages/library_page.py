@@ -51,6 +51,7 @@ from PySide6.QtWidgets import (
 )
 
 from sclip.paths import app_paths
+from sclip.ui.formatting import format_bytes
 from sclip.ui.theme import (
     SPACING_LG,
     SPACING_MD,
@@ -79,8 +80,18 @@ logger = logging.getLogger(__name__)
 # are starting hints, not hard contracts -- the grid reads them to decide how
 # many columns fit, and the thumbnail label is fixed to the size below.
 _TILE_WIDTH: int = 260
-_THUMB_WIDTH: int = 232
-_THUMB_HEIGHT: int = 130  # 16:9-ish of the width above
+
+# ``QFrame#ClipTile`` in styles.qss carries a 1px border, which Qt takes out of
+# the frame's content rect before the layout ever sees it.
+_TILE_BORDER: int = 1
+
+# Derived from the tile rather than written out. A hand-picked 232 against a
+# 242px content box left every thumbnail ten pixels narrower than the filename
+# and caption beneath it, so no edge in the grid lined up with any other.
+# ``test_clip_tile_thumbnail_and_caption_share_their_edges`` pins the result,
+# so changing the tile's padding or border cannot silently reintroduce the gap.
+_THUMB_WIDTH: int = _TILE_WIDTH - 2 * _TILE_BORDER - 2 * SPACING_XS
+_THUMB_HEIGHT: int = round(_THUMB_WIDTH * 9 / 16)
 
 # Each column needs the tile width plus the grid's horizontal spacing; 280 is
 # that budget rounded up, so ``available_width // 280`` lands on a sensible
@@ -99,21 +110,6 @@ _THUMB_SCALE_WIDTH: int = 320
 # ---------------------------------------------------------------------------
 # Small formatting helpers
 # ---------------------------------------------------------------------------
-
-
-def _format_size(num_bytes: int) -> str:
-    """Render a byte count in a friendly unit, e.g. ``"1.2 MB"``.
-
-    The previous form divided ``value`` *before* the ``TB`` branch fired, so a
-    file ≥ 1 TB was reported in the wrong order of magnitude. This version
-    only divides while there is still a larger unit to fall through to.
-    """
-    value = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if value < 1024.0:
-            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1024.0
-    return f"{value:.1f} TB"
 
 
 def _format_duration(seconds: float) -> str:
@@ -381,7 +377,7 @@ class _ClipTile(QFrame):
             self._size_text = ""
             self._date_text = ""
         else:
-            self._size_text = _format_size(stat.st_size)
+            self._size_text = format_bytes(stat.st_size)
             self._date_text = _format_date(stat.st_mtime)
         self._refresh_caption()
 

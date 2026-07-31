@@ -78,6 +78,14 @@ _RESOLUTION_PATTERN = re.compile(r"^\s*(\d{2,5})\s*[xX\xd7]\s*(\d{2,5})\s*$")
 # every editable widget gets pinned to this comfortable minimum.
 _INPUT_HEIGHT: int = 34
 
+# Width cap for ordinary fields (resolution, encoder, device combos). Wide
+# enough for the longest device name the machine is likely to report.
+_FIELD_MAX_WIDTH: int = 340
+
+# Width cap for short numeric fields (frame rate, quality, buffer length).
+# Wide enough for four digits plus a unit suffix and the stepper buttons.
+_NUMERIC_INPUT_WIDTH: int = 150
+
 # The label column is fixed-width so labels and inputs line up across cards.
 _LABEL_COLUMN_WIDTH: int = 150
 
@@ -318,7 +326,10 @@ class SettingsPage(QWidget):
             value_label.setProperty("role", "value")
             value_label.setWordWrap(True)
             grid.addWidget(key_label, row, 0, Qt.AlignmentFlag.AlignVCenter)
-            grid.addWidget(value_label, row, 1)
+            # These are read-only summary values, not inputs: they want the
+            # input column *and* the gutter, so a long device name stays on one
+            # line instead of wrapping inside a narrow field-width column.
+            grid.addWidget(value_label, row, 1, 1, 2)
             self._recommended_values[key] = value_label
 
         # Re-detect action: a low-emphasis ghost button is right here — the
@@ -337,16 +348,24 @@ class SettingsPage(QWidget):
 
     @staticmethod
     def _make_card_grid(card: Card) -> QGridLayout:
-        """Build the two-column grid that lays a card's fields out.
+        """Build the three-column grid that lays a card's fields out.
 
-        Column 0 holds fixed-width labels; column 1 stretches to take the
-        input. Adding rows to *this* grid — rather than stacking loose
+        Column 0 holds fixed-width labels, column 1 holds the input at its own
+        comfortable width, and column 2 is an empty gutter that soaks up the
+        slack. Adding rows to *this* grid — rather than stacking loose
         ``QHBoxLayout``s into the card's spacing-0 body — is what gives the
         form readable, evenly spaced rows.
+
+        The gutter is load-bearing. Fields are width-capped, so if the stretch
+        sat on the input column instead, every column would have a maximum, the
+        grid's own maximum would fall below the card width, and Qt would centre
+        the whole form in the middle of the card — labels and all — rather than
+        leaving it anchored to the left edge.
         """
         grid = QGridLayout()
         grid.setColumnStretch(0, 0)
-        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 1)
         grid.setColumnMinimumWidth(0, _LABEL_COLUMN_WIDTH)
         grid.setHorizontalSpacing(SPACING_MD)
         grid.setVerticalSpacing(SPACING_SM)
@@ -370,17 +389,38 @@ class SettingsPage(QWidget):
 
     @staticmethod
     def _add_spanning_widget(grid: QGridLayout, row: int, widget: QWidget) -> None:
-        """Place ``widget`` across both columns of grid ``row``.
+        """Place ``widget`` across every column of grid ``row``.
 
         Used for check boxes and for inline error/hint labels, which read
         better spanning the full card width than squeezed into one column.
         """
-        grid.addWidget(widget, row, 0, 1, 2)
+        grid.addWidget(widget, row, 0, 1, 3)
 
     @staticmethod
     def _size_input(widget: QWidget) -> QWidget:
-        """Pin an editable control to a consistent, comfortable height."""
+        """Pin an editable control to a consistent height and a readable width.
+
+        A text field stretched across the full width of a card is harder to
+        scan, not easier — the value sits marooned at the left of a long empty
+        trough. Capping the field and letting the grid's gutter take the slack
+        keeps the form a readable column.
+        """
         widget.setMinimumHeight(_INPUT_HEIGHT)
+        widget.setMaximumWidth(_FIELD_MAX_WIDTH)
+        return widget
+
+    @staticmethod
+    def _size_numeric_input(widget: QWidget) -> QWidget:
+        """Size a short numeric control: full height, but a modest width.
+
+        Every field sits in the grid's stretching second column, so without a
+        cap a spin box showing "30 s" sprawls the full width of the card —
+        several hundred pixels of chrome around two characters. Paths, device
+        names and resolutions still want the whole column; only the short
+        numeric fields are reined in.
+        """
+        widget.setMinimumHeight(_INPUT_HEIGHT)
+        widget.setMaximumWidth(_NUMERIC_INPUT_WIDTH)
         return widget
 
     def _build_video_card(self, parent: QWidget) -> Card:
@@ -399,7 +439,7 @@ class SettingsPage(QWidget):
         self._fps_spin = QSpinBox(card)
         self._fps_spin.setRange(1, 240)
         self._fps_spin.setSuffix(" fps")
-        self._size_input(self._fps_spin)
+        self._size_numeric_input(self._fps_spin)
         self._fps_spin.valueChanged.connect(self._on_fps_changed)
         self._add_field_row(grid, 2, "Frame rate", self._fps_spin)
 
@@ -421,7 +461,7 @@ class SettingsPage(QWidget):
         # Quality (CRF), with a hint clarifying the unintuitive scale.
         self._quality_spin = QSpinBox(card)
         self._quality_spin.setRange(0, 51)
-        self._size_input(self._quality_spin)
+        self._size_numeric_input(self._quality_spin)
         self._quality_spin.valueChanged.connect(self._on_quality_changed)
         self._add_field_row(grid, 5, "Quality", self._quality_spin)
         self._add_spanning_widget(grid, 6, self._make_hint_label("lower = better quality"))
@@ -478,7 +518,7 @@ class SettingsPage(QWidget):
         self._replay_seconds_spin = QSpinBox(card)
         self._replay_seconds_spin.setRange(5, 600)
         self._replay_seconds_spin.setSuffix(" s")
-        self._size_input(self._replay_seconds_spin)
+        self._size_numeric_input(self._replay_seconds_spin)
         self._replay_seconds_spin.valueChanged.connect(self._on_replay_seconds_changed)
         self._add_field_row(grid, 1, "Buffer length", self._replay_seconds_spin)
 

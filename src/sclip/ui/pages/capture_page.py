@@ -35,9 +35,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sclip.contracts import CaptureEngine, CaptureMode, CaptureState, Settings, SettingsStore
+from sclip.contracts import (
+    BufferTelemetry,
+    CaptureEngine,
+    CaptureMode,
+    CaptureState,
+    Settings,
+    SettingsStore,
+)
 from sclip.paths import app_paths
 from sclip.ui.assets.icons import icon
+from sclip.ui.formatting import format_bitrate, format_bytes
 from sclip.ui.theme import (
     SPACING_LG,
     SPACING_MD,
@@ -47,7 +55,14 @@ from sclip.ui.theme import (
     SPACING_XXS,
     THEME,
 )
-from sclip.ui.widgets import Card, IconButton, RecordOrb, SegmentedControl, StatusPill
+from sclip.ui.widgets import (
+    BufferMeter,
+    Card,
+    IconButton,
+    RecordOrb,
+    SegmentedControl,
+    StatusPill,
+)
 from sclip.ui.widgets.record_orb import (
     ANIM_NONE,
     ANIM_PULSE,
@@ -56,6 +71,8 @@ from sclip.ui.widgets.record_orb import (
     GLYPH_CIRCLE,
     GLYPH_SPINNER,
     GLYPH_SQUARE,
+    ORB_EXTENT_COMPACT,
+    ORB_EXTENT_DEFAULT,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,10 +90,16 @@ _RECENT_CLIPS_LIMIT = 4
 # The mode selector is capped so a two-option control does not span the card.
 _MODE_SELECTOR_WIDTH = 360
 
-# Recent-clip tiles use a fixed 16:9 thumbnail so the row stays tidy.
-_THUMB_WIDTH = 168
-_THUMB_HEIGHT = 94
+# Recent-clip tiles use a fixed 16:9 thumbnail so the row stays tidy. The
+# thumbnail width is derived from the tile rather than written out, because a
+# hand-picked number drifts: it was 168 against a 170px content box, so every
+# thumbnail sat narrower than the filename beneath it and nothing in the row
+# shared an edge. ``QFrame#ClipTile`` carries a 1px border that Qt removes from
+# the content rect before the layout runs, so it comes off here too.
 _TILE_WIDTH = 188
+_TILE_BORDER = 1
+_THUMB_WIDTH = _TILE_WIDTH - 2 * _TILE_BORDER - 2 * SPACING_XS
+_THUMB_HEIGHT = round(_THUMB_WIDTH * 9 / 16)
 
 # The two segmented-control options, in display order.
 _MODE_OPTIONS: tuple[str, ...] = ("Manual recording", "Replay buffer")
@@ -137,6 +160,25 @@ def _existing_thumbnail(clip: Path) -> QPixmap | None:
         except OSError as exc:
             logger.debug("Could not read thumbnail %s: %s", thumb_path, exc)
     return None
+
+
+def _stat_row(layout: QVBoxLayout, label_text: str, parent: QWidget) -> QLabel:
+    """Append a ``LABEL ............ value`` row and return its value label."""
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(SPACING_SM)
+
+    caption = QLabel(label_text, parent)
+    caption.setObjectName("StatLabel")
+    row.addWidget(caption)
+    row.addStretch(1)
+
+    value = QLabel("—", parent)
+    value.setObjectName("StatValue")
+    row.addWidget(value)
+
+    layout.addLayout(row)
+    return value
 
 
 def _chip(label_text: str, parent: QWidget) -> tuple[QFrame, QLabel]:
@@ -242,6 +284,16 @@ class CapturePage(QWidget):
         self._last_error: str = ""
         # Wall-clock start of the current recording, for the elapsed readout.
         self._session_started: float | None = None
+        # Most recent buffer snapshot, refreshed on every render. ``None`` means
+        # the engine has no rolling window to describe.
+        self._telemetry: BufferTelemetry | None = None
+        # Tri-state on purpose: ``None`` means "no layout applied yet", so the
+        # first resize always composes the stage rather than short-circuiting
+        # because it happens to match the default.
+        self._compact: bool | None = None
+        # How many recent-clip tiles the last rebuild laid out. -1 forces the
+        # first resize to populate the row.
+        self._recent_capacity: int = -1
 
         # Ticks once a second while recording so the elapsed time stays live.
         self._tick_timer = QTimer(self)
@@ -318,7 +370,8 @@ class CapturePage(QWidget):
             SPACING_XL,
         )
         self._stage_layout.setSpacing(SPACING_XL)
-        self._stage_layout.addWidget(self._build_capture_instrument(stage), 3)
+        self._capture_instrument = self._build_capture_instrument(stage)
+        self._stage_layout.addWidget(self._capture_instrument, 3)
         self._capture_readout = self._build_capture_readout(stage)
         self._stage_layout.addWidget(self._capture_readout, 2)
         return stage
@@ -382,7 +435,9 @@ class CapturePage(QWidget):
         self._caption.setProperty("role", "caption")
         self._caption.setWordWrap(True)
         readout_layout.addWidget(self._caption)
-        readout_layout.addStretch(1)
+
+        readout_layout.addWidget(self._build_telemetry_block(readout))
+        readout_layout.addSpacing(SPACING_SM)
 
         shortcut = QFrame(readout)
         shortcut.setObjectName("ShortcutHint")
@@ -412,6 +467,35 @@ class CapturePage(QWidget):
         self._secondary_button.setVisible(False)
         readout_layout.addWidget(self._secondary_button, 0, Qt.AlignmentFlag.AlignLeft)
         return readout
+
+    def _build_telemetry_block(self, parent: QWidget) -> QWidget:
+        """Build the live buffer meter and its three figures.
+
+        Everything sits in one container so a single ``setVisible`` hides the
+        whole block in states with no rolling window. There is deliberately no
+        stretch anywhere in the readout: the panel sizes to its content, so an
+        engine that reports nothing leaves a tidy card rather than the 200px
+        gap this screen used to hold open.
+        """
+        box = QWidget(parent)
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, SPACING_XS, 0, 0)
+        layout.setSpacing(SPACING_XS)
+
+        self._buffer_meter = BufferMeter(box)
+        layout.addWidget(self._buffer_meter)
+
+        stats = QVBoxLayout()
+        stats.setContentsMargins(0, 0, 0, 0)
+        stats.setSpacing(SPACING_XXS)
+        self._disk_value = _stat_row(stats, "ON DISK", box)
+        self._bitrate_value = _stat_row(stats, "BITRATE", box)
+        self._segments_value = _stat_row(stats, "SEGMENTS", box)
+        layout.addLayout(stats)
+
+        box.setVisible(False)
+        self._telemetry_box = box
+        return box
 
     def _build_profile_bar(self) -> QFrame:
         """Build a compact, one-line summary of the active capture profile."""
@@ -467,16 +551,53 @@ class CapturePage(QWidget):
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Recompose dense capture controls at the compact breakpoint."""
         super().resizeEvent(event)
-        compact = event.size().width() < _COMPACT_BREAKPOINT
+        self._apply_compact_layout(event.size().width() < _COMPACT_BREAKPOINT)
+        # Rebuild the recent row only when the number of tiles that fit
+        # actually changes, so an ordinary drag does not re-scan the disk.
+        if self._recent_tile_capacity() != self._recent_capacity:
+            self._refresh_recent_clips()
+
+    def _apply_compact_layout(self, compact: bool) -> None:
+        """Recompose the capture stage for narrow windows.
+
+        Stacking on its own is not enough. With the instrument on top, a
+        248px orb plus the mode selector and its labels pushed the readout —
+        which carries the save action and its hotkey — clean below the fold at
+        the documented 960x640 minimum, so the primary control of the whole
+        application was invisible at the smallest supported size.
+
+        In compact mode the readout therefore leads and the orb shrinks. The
+        supported window size does not change; the priority order does.
+        """
+        if compact == self._compact:
+            return
+        self._compact = compact
 
         stage_layout = getattr(self, "_stage_layout", None)
         readout = getattr(self, "_capture_readout", None)
-        if stage_layout is not None and readout is not None:
+        instrument = getattr(self, "_capture_instrument", None)
+        if stage_layout is not None and readout is not None and instrument is not None:
             stage_layout.setDirection(
                 QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
             )
+            # QBoxLayout cannot reorder in place, so both children are detached
+            # and re-added. They stay parented to the stage throughout, so this
+            # is a re-seat rather than a rebuild.
+            stage_layout.removeWidget(instrument)
+            stage_layout.removeWidget(readout)
+            if compact:
+                stage_layout.addWidget(readout, 0)
+                stage_layout.addWidget(instrument, 0)
+            else:
+                stage_layout.addWidget(instrument, 3)
+                stage_layout.addWidget(readout, 2)
+
             readout.setMinimumWidth(0 if compact else 300)
             readout.setMaximumWidth(16_777_215 if compact else 380)
+
+        orb = getattr(self, "_orb", None)
+        if orb is not None:
+            orb.set_extent(ORB_EXTENT_COMPACT if compact else ORB_EXTENT_DEFAULT)
 
         profile_layout = getattr(self, "_profile_layout", None)
         if profile_layout is not None:
@@ -580,9 +701,49 @@ class CapturePage(QWidget):
             logger.exception("Could not stop the replay buffer")
 
     def _on_tick(self) -> None:
-        """Refresh the elapsed-time readout once a second while recording."""
-        if self._engine.state is CaptureState.RECORDING:
-            self._render_state(CaptureState.RECORDING)
+        """Refresh the live readouts once a second.
+
+        Both the elapsed recording clock and the replay-buffer fill change on
+        their own without any engine event to announce it, so they need a
+        timer rather than a state transition to stay honest.
+        """
+        state = self._engine.state
+        if state in (CaptureState.RECORDING, CaptureState.BUFFERING, CaptureState.SAVING):
+            self._render_state(state)
+
+    def _read_telemetry(self) -> BufferTelemetry | None:
+        """Ask the engine for a buffer snapshot, tolerating engines without one.
+
+        This touches the disk — a directory listing plus a ``stat`` per segment
+        — on the GUI thread. At one hertz over the sixteen segments a default
+        thirty-second window holds, that is comfortably sub-millisecond. Were
+        the poll ever made faster, or the window very long, this is the call
+        that would need moving to a worker.
+        """
+        try:
+            return self._engine.telemetry()
+        except Exception:
+            logger.exception("Reading capture telemetry failed")
+            return None
+
+    def _render_telemetry(self, state: CaptureState) -> None:
+        """Show or hide the live buffer block and refresh its figures."""
+        telemetry = self._telemetry
+        # Only the rolling-window states have anything to report, and an engine
+        # that cannot answer (a stub, or FFmpeg missing) hides the block rather
+        # than showing dashes.
+        visible = telemetry is not None and state in (
+            CaptureState.BUFFERING,
+            CaptureState.SAVING,
+        )
+        self._telemetry_box.setVisible(visible)
+        if not visible or telemetry is None:
+            return
+
+        self._buffer_meter.set_fraction(telemetry.fill_fraction)
+        self._disk_value.setText(format_bytes(telemetry.bytes_on_disk))
+        self._bitrate_value.setText(format_bitrate(telemetry.bitrate_bps))
+        self._segments_value.setText(f"{telemetry.segment_count} / {telemetry.segment_capacity}")
 
     def _render_state(self, state: CaptureState) -> None:
         """Turn an engine state into pixels — orb, pill, copy and buttons.
@@ -593,16 +754,24 @@ class CapturePage(QWidget):
         """
         self._sync_mode_to_state(state)
         self._status_pill.set_state(state)
+        self._telemetry = self._read_telemetry()
 
-        # Keep the elapsed timer running only while a recording is live.
+        # The timer drives two live readouts: the elapsed clock while
+        # recording, and the buffer fill while the replay window is rolling.
         if state is CaptureState.RECORDING:
             if self._session_started is None:
                 self._session_started = time.monotonic()
             if not self._tick_timer.isActive():
                 self._tick_timer.start()
+        elif state in (CaptureState.BUFFERING, CaptureState.SAVING):
+            self._session_started = None
+            if not self._tick_timer.isActive():
+                self._tick_timer.start()
         else:
             self._session_started = None
             self._tick_timer.stop()
+
+        self._render_telemetry(state)
 
         self._apply_orb_visual(state)
 
@@ -679,10 +848,7 @@ class CapturePage(QWidget):
                 f"{_format_elapsed(elapsed)} elapsed. Your session is writing to disk.",
             )
         if state is CaptureState.BUFFERING:
-            return (
-                f"{seconds} seconds live",
-                "The replay buffer is armed. Save the moment without leaving the game.",
-            )
+            return self._buffering_copy(seconds)
         if state is CaptureState.SAVING:
             return "Building clip", "Laying down one clean, constant-rate timeline."
         if state is CaptureState.ERROR:
@@ -699,13 +865,61 @@ class CapturePage(QWidget):
             )
         return "Ready on command", "Start a full recording from here or from your hotkey."
 
+    def _buffering_copy(self, window_seconds: int) -> tuple[str, str]:
+        """Describe the replay window without overstating what is in it.
+
+        The buffer starts empty and fills over ``window_seconds``. Quoting the
+        configured target the instant it arms — which is what this screen used
+        to do — tells the user they have thirty seconds banked when a save
+        would actually produce two. The wording tracks the real fill instead,
+        so the number on screen matches the clip they would get.
+
+        When the engine cannot report telemetry we describe the *configuration*
+        ("keeping the last N seconds ready") rather than asserting a current
+        contents we have no way to know.
+        """
+        telemetry = self._telemetry
+        if telemetry is None:
+            return (
+                "Replay buffer armed",
+                f"Keeping the last {window_seconds} seconds ready.",
+            )
+
+        if telemetry.buffered_seconds <= 0:
+            return (
+                "Buffer warming up",
+                "Arming — there is nothing to save yet.",
+            )
+
+        if telemetry.is_full:
+            return (
+                f"{telemetry.window_seconds} seconds ready",
+                "The replay buffer is full. Save the moment without leaving the game.",
+            )
+
+        remaining = max(1, round(telemetry.window_seconds - telemetry.buffered_seconds))
+        return (
+            f"{int(telemetry.buffered_seconds)} of {telemetry.window_seconds} seconds buffered",
+            f"Filling — the full window is ready in {remaining}s.",
+        )
+
     def _shortcut_copy(self, state: CaptureState) -> tuple[str, str]:
         """Return the action label and key shown in the readout rail."""
         if state is CaptureState.RECORDING:
             return "STOP RECORDING", self._settings.record_hotkey.to_display()
         if state is CaptureState.BUFFERING:
+            # The label names what the key would actually save. While the
+            # buffer is still filling that is less than the configured window,
+            # and promising the full amount here would undo the honesty of the
+            # headline directly above it.
+            telemetry = self._telemetry
+            available = (
+                int(min(telemetry.buffered_seconds, telemetry.window_seconds))
+                if telemetry is not None
+                else int(self._settings.replay_seconds)
+            )
             return (
-                f"SAVE LAST {max(1, int(self._settings.replay_seconds))} SECONDS",
+                f"SAVE LAST {max(1, available)} SECONDS",
                 self._settings.clip_hotkey.to_display(),
             )
         if state is CaptureState.SAVING:
@@ -764,9 +978,26 @@ class CapturePage(QWidget):
         self._audio_value.setText(_audio_summary(settings))
         self._quality_value.setText(_quality_summary(settings))
 
+    def _recent_tile_capacity(self) -> int:
+        """How many recent-clip tiles fit the current width, at least one.
+
+        The tiles are fixed-width, so a row of four cannot shrink: at a 960px
+        window it claims about 790px against roughly 600px of usable page, and
+        because the page is inside a width-resizable scroll area that minimum
+        propagates outwards and drags *every* card wider than the viewport.
+        The stage overflowed the window as a result. Fitting the row to the
+        available width keeps the page inside its viewport at any size.
+        """
+        # Page padding on both sides, then the card's own padding on both.
+        available = self.width() - 2 * SPACING_XL - 2 * SPACING_LG
+        step = _TILE_WIDTH + SPACING_SM
+        fits = (available + SPACING_SM) // step
+        return max(1, min(_RECENT_CLIPS_LIMIT, fits))
+
     def _refresh_recent_clips(self) -> None:
         """Rescan the clip directories and rebuild the recent-clip tiles."""
-        clips = self._scan_recent_clips()
+        self._recent_capacity = self._recent_tile_capacity()
+        clips = self._scan_recent_clips()[: self._recent_capacity]
 
         while self._recent_row.count():
             item = self._recent_row.takeAt(0)

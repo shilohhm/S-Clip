@@ -11,6 +11,7 @@ import Card`` rather than having to remember each module path.
 
 from __future__ import annotations
 
+from sclip.ui.widgets.buffer_meter import BufferMeter
 from sclip.ui.widgets.card import Card
 from sclip.ui.widgets.hotkey_edit import HotkeyEdit
 from sclip.ui.widgets.icon_button import IconButton
@@ -22,6 +23,7 @@ from sclip.ui.widgets.title_bar import TITLE_BAR_HEIGHT, TitleBar
 
 __all__ = [
     "TITLE_BAR_HEIGHT",
+    "BufferMeter",
     "Card",
     "HotkeyEdit",
     "IconButton",
