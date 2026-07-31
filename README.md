@@ -90,10 +90,17 @@ S-Clip is deliberately small at the surface and serious underneath:
 | Settings | Atomic writes, schema migration, hostile-input validation, and hardware-tuned defaults |
 | Quality | Strict mypy, Ruff, a whole-package coverage gate covering the interface as well as the core, and Windows CI across Python 3.10–3.13 |
 
-The final replay stitch intentionally re-encodes. A stream copy is faster, but
-small audio/video duration differences at each segment boundary can produce
-visible timing seams. S-Clip spends a few seconds building one constant-rate
-timeline so the saved clip plays cleanly.
+The final replay stitch intentionally re-encodes, and it is not free. Measured
+on an NVENC machine, stitching 28 seconds of 2560x1440 60fps footage takes
+about 11 seconds; a stream copy of the same segments takes 1.3. It is tempting
+until you look at what comes out of it — variable frame rate, and eleven frames
+short, because each segment's audio track makes its container a hair longer
+than its video and those differences accumulate at every join.
+
+S-Clip spends the extra time laying down one unbroken constant-rate timeline so
+the saved clip plays cleanly. Hardware-accelerated decoding does not shorten it;
+the cost is the encode itself. The rolling buffer keeps running throughout, so
+the wait costs you nothing you would otherwise have captured.
 
 ## Install
 
