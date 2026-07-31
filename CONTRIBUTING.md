@@ -54,6 +54,16 @@ python scripts/render_readme_screenshot.py
 
 This writes all four page screenshots into `docs/assets/`. It encodes its own
 sample recordings with FFmpeg, so keep FFmpeg on `PATH`; without it the render
-still succeeds but shows the empty library state. Do not hand-edit the images
-or feed the renderer data the application could not itself produce — the point
-of the script is that the README shows the app as it really is.
+still succeeds but shows the empty library state.
+
+The animated demo has its own script, which needs FFmpeg:
+
+```powershell
+python scripts/render_demo_gif.py
+```
+
+Do not hand-edit either output, and do not feed the renderers data the
+application could not itself produce — the point of both scripts is that the
+README shows the app as it really is. In particular, do not swap the scripted
+engine for a live capture: that would put whatever was on your screen into a
+public repository.
