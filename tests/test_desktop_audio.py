@@ -81,8 +81,15 @@ def test_silence_still_keeps_the_pipe_moving() -> None:
 
     assert pipe.writes, "nothing was written while the device was silent"
     assert stream.reads == 0, "read() must not be called when no frames are ready"
-    assert all(len(chunk) == _CHUNK_BYTES for chunk in pipe.writes)
-    assert all(set(chunk) == {0} for chunk in pipe.writes), "substitute must be silence"
+    assert all(set(chunk) == {0} for chunk in pipe.writes), "padding must be silence"
+
+    # Padding is sized to the shortfall rather than to a fixed chunk, so the
+    # useful assertion is about rate: roughly a second of audio per second.
+    frames = sum(len(chunk) // (_CHANNELS * 2) for chunk in pipe.writes)
+    expected = 0.4 * _RATE
+    assert 0.5 * expected < frames < 1.5 * expected, (
+        f"emitted {frames} frames of silence where about {expected:.0f} were due"
+    )
 
 
 def test_real_audio_is_forwarded_rather_than_replaced() -> None:
@@ -105,17 +112,17 @@ def test_the_loop_paces_itself_instead_of_spinning() -> None:
     """
     stream = _Stream(available=0)
     pipe = _Pipe()
-    period = _READ_FRAMES / _RATE
     duration = 0.5
 
     _pump_for(stream, pipe, seconds=duration)
 
-    expected = duration / period
-    # Generous bounds: this asserts "paced", not a precise clock.
-    assert len(pipe.writes) < expected * 4, (
-        f"wrote {len(pipe.writes)} chunks in {duration}s; expected around {expected:.0f}"
+    # The loop is deficit-driven, not chunk-driven, so measure the audio it
+    # actually produced rather than how many writes it took to get there.
+    frames = sum(len(chunk) // (_CHANNELS * 2) for chunk in pipe.writes)
+    expected = duration * _RATE
+    assert 0.5 * expected < frames < 1.5 * expected, (
+        f"emitted {frames} frames in {duration}s; real time is about {expected:.0f}"
     )
-    assert len(pipe.writes) > expected / 4
 
 
 def test_the_loop_stops_when_the_reader_goes_away() -> None:

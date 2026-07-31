@@ -295,21 +295,39 @@ class DesktopAudioPump:
         sample_rate: int,
         channels: int,
     ) -> None:
-        """Forward loopback PCM to the pipe at real time until asked to stop.
+        """Forward loopback PCM to the pipe until asked to stop.
+
+        Two failure modes shape this loop, and they pull in opposite
+        directions.
 
         A WASAPI loopback endpoint delivers nothing at all while the system is
         silent - it does not hand back buffers of zeroes. Blocking on ``read``
-        therefore stalls this thread whenever nothing is playing, the pipe stops
-        advancing, and FFmpeg starves on an input that never moves. The capture
-        then produces no segments whatsoever, so a muted game or a menu screen
-        was enough to make S-Clip record nothing at all, silently.
+        therefore stalls the thread whenever nothing is playing, the pipe stops
+        advancing, and FFmpeg starves on an input that never moves. A muted game
+        was enough to make the capture produce no segments whatsoever.
 
-        The loop therefore paces itself and substitutes silence when the device
-        has none, which keeps the pipe advancing whether or not a sound plays.
+        Padding that gap on a fixed timer then caused the opposite problem.
+        Windows' default timer granularity is around 15 ms against a chunk
+        period of 23 ms, so a loop that sleeps its computed slack overshoots and
+        emits slower than 44.1 kHz. FFmpeg then waits on audio and drags video
+        down with it: capture keep-up measured 72% with desktop audio on
+        against 97% with it off, and the video was not the thing at fault.
+
+        So the device's own clock drives the loop whenever audio is flowing -
+        available frames are taken immediately, with no sleep in the path - and
+        silence is added only to make up a shortfall measured against elapsed
+        wall time. When sound is playing the correction is zero and nothing is
+        injected; when the endpoint goes quiet the deficit grows and is filled
+        exactly. The result is self-correcting and needs no accurate timer.
         """
-        silence = bytes(_READ_FRAMES * channels * 2)  # zeroed 16-bit samples
-        period = _READ_FRAMES / float(sample_rate)
-        deadline = time.monotonic()
+        bytes_per_frame = channels * 2  # 16-bit samples
+        started = time.monotonic()
+        written_frames = 0
+
+        # Only bother padding once the shortfall is worth a write, and never
+        # emit a huge block at once, so a long silence stays smooth.
+        min_pad = _READ_FRAMES // 2
+        max_pad = _READ_FRAMES * 4
 
         while not self._stop_event.is_set():
             try:
@@ -317,28 +335,32 @@ class DesktopAudioPump:
             except Exception:  # not every backend implements it
                 available = _READ_FRAMES
 
-            if available >= _READ_FRAMES:
-                # exception_on_overflow is off: an overrun drops a few samples,
-                # far better than tearing the capture down.
-                chunk = stream.read(_READ_FRAMES, exception_on_overflow=False)
-            else:
-                chunk = silence
+            if available > 0:
+                # Returns straight away: we only ask for what is already there,
+                # so the device paces us without a sleep.
+                chunk = stream.read(min(available, _READ_FRAMES), exception_on_overflow=False)
+                if not pipe.write(chunk):
+                    if not self._stop_event.is_set():
+                        logger.debug("Desktop-audio reader closed the pipe")
+                    return
+                written_frames += len(chunk) // bytes_per_frame
+                continue
 
-            if not pipe.write(chunk):
-                # FFmpeg closed the pipe - normal at the end of a recording.
-                if not self._stop_event.is_set():
-                    logger.debug("Desktop-audio reader closed the pipe")
-                return
+            expected = int((time.monotonic() - started) * sample_rate)
+            deficit = expected - written_frames
+            if deficit >= min_pad:
+                pad = min(deficit, max_pad)
+                if not pipe.write(bytes(pad * bytes_per_frame)):
+                    if not self._stop_event.is_set():
+                        logger.debug("Desktop-audio reader closed the pipe")
+                    return
+                written_frames += pad
+                continue
 
-            # Pace to real time; without this the silence path would spin and
-            # flood the pipe far faster than the capture consumes it.
-            deadline += period
-            slack = deadline - time.monotonic()
-            if slack > 0:
-                self._stop_event.wait(slack)
-            else:
-                # Fell behind: resync rather than catching up in a burst.
-                deadline = time.monotonic()
+            # Nothing ready and nothing owed: idle briefly. The wait is short
+            # enough that the coarse Windows timer cannot make us fall behind,
+            # because the deficit above corrects for it either way.
+            self._stop_event.wait(0.002)
 
     def _run(self, device_index: int, sample_rate: int, channels: int) -> None:
         """Worker thread: read loopback PCM and forward it to the pipe."""

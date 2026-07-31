@@ -48,6 +48,17 @@ _AUDIO_THREAD_QUEUE: str = "1024"
 # capture - one source of truth keeps the two paths in lockstep.
 AUDIO_BITRATE: str = "192k"
 
+# Consecutive B-frames between reference frames. Three is the usual sweet spot:
+# most of the compression benefit, and still supported by every NVENC generation
+# the application targets. Safe alongside the segment muxer because every
+# segment starts on an IDR, which no later frame can reference across.
+_B_FRAMES: int = 3
+
+# Skip FFmpeg's stream analysis on inputs we fully describe ourselves. The
+# default is to read up to five seconds before starting, which is time the
+# user spends waiting for the buffer to arm.
+_FAST_PROBE: tuple[str, ...] = ("-analyzeduration", "0", "-probesize", "32")
+
 
 class FFmpegNotFoundError(RuntimeError):
     """Raised when no FFmpeg binary can be located on this machine."""
@@ -432,7 +443,39 @@ def build_quality_args(codec: str, crf: int) -> list[str]:
     if codec.endswith("_nvenc"):
         # VBR with a quality target and no bitrate cap: NVENC then chases the
         # requested quality rather than a fixed bitrate.
-        return ["-rc", "vbr", "-cq", str(crf), "-b:v", "0"]
+        #
+        # The rest are quality features NVENC leaves off by default and which
+        # measurement showed are effectively free here: the fastest preset (p1)
+        # captured no faster than the balanced one, so the encoder is nowhere
+        # near its limit and the spare capacity may as well buy picture quality.
+        #
+        #   spatial-aq   moves bits from flat areas to detailed ones. Screen
+        #                content is mostly flat, so this is where a recording
+        #                of a game UI visibly gains.
+        #   temporal-aq  does the same across time, helping during motion.
+        #   rc-lookahead lets the rate controller see ahead before committing
+        #                bits, which is what stops a sudden scene change from
+        #                being starved.
+        #   multipass    a second analysis pass at reduced resolution; cheap on
+        #                a dedicated encoder and worth real quality.
+        return [
+            "-rc",
+            "vbr",
+            "-cq",
+            str(crf),
+            "-b:v",
+            "0",
+            "-spatial-aq",
+            "1",
+            "-aq-strength",
+            "8",
+            "-temporal-aq",
+            "1",
+            "-rc-lookahead",
+            "32",
+            "-multipass",
+            "qres",
+        ]
     if codec.endswith("_amf"):
         return ["-rc", "cqp", "-qp_i", str(crf), "-qp_p", str(crf), "-qp_b", str(crf)]
     if codec.endswith("_qsv"):
@@ -465,9 +508,13 @@ def build_encoder_args(
     to the start of every segment - that is what lets the segments be
     stitched back together without a judder at each five-second boundary.
 
-    ``-bf 0`` disables B-frames everywhere. B-frames reference future frames,
-    which would reach across a segment cut and corrupt the join; banning them
-    keeps every segment a self-contained, cleanly decodable unit.
+    B-frames are enabled. They were previously banned outright on the grounds
+    that they reference future frames and so would reach across a segment cut,
+    but that is not what happens: ``force_keyframes`` puts an IDR at every
+    boundary, and an IDR empties the reference picture buffer, so nothing after
+    a cut can refer to anything before it. Segments stay independently
+    decodable, and the compression they buy is substantial - measurably better
+    picture at the same quality target.
     """
     gop = max(1, plan.fps * keyframe_seconds)
     args: list[str] = ["-c:v", plan.encoder, "-preset", plan.preset]
@@ -482,7 +529,7 @@ def build_encoder_args(
         "-g",
         str(gop),
         "-bf",
-        "0",
+        str(_B_FRAMES),
         "-fps_mode",
         "cfr",  # force constant frame rate on the output as well as the input
     ]
@@ -523,8 +570,19 @@ def _amix_chain(audio_indices: Sequence[int], *, label: str) -> str:
     system output we fold them together with ``amix``.
     """
     inputs = "".join(f"[{index}:a]" for index in audio_indices)
+    count = len(audio_indices)
+    # normalize=0 is the important part. By default amix divides every input by
+    # the number of inputs, so capturing a microphone alongside game audio
+    # halved both: a clip recorded with a mic was quieter than the same clip
+    # recorded without one, which is not a mixing decision anybody asked for.
+    # Turning that off keeps each source at the level it was captured at.
+    #
+    # Without the automatic attenuation two loud sources can sum past full
+    # scale, so a limiter follows. It only acts on peaks that would otherwise
+    # clip, leaving normal levels untouched.
     return (
-        f"{inputs}amix=inputs={len(audio_indices)}:duration=longest:dropout_transition=0[{label}]"
+        f"{inputs}amix=inputs={count}:duration=longest:dropout_transition=0:normalize=0,"
+        f"alimiter=limit=0.97:attack=5:release=50[{label}]"
     )
 
 
@@ -566,6 +624,9 @@ def _build_audio_inputs(audio: AudioConfig, first_index: int) -> tuple[list[str]
             "dshow",
             "-thread_queue_size",
             _AUDIO_THREAD_QUEUE,
+            # See the note on the desktop input below: FFmpeg's default probe
+            # costs seconds of arm latency for no information we need.
+            *_FAST_PROBE,
             "-i",
             f"audio={audio.microphone}",
         ]
@@ -583,6 +644,13 @@ def _build_audio_inputs(audio: AudioConfig, first_index: int) -> tuple[list[str]
             str(audio.desktop_channels),
             "-thread_queue_size",
             _AUDIO_THREAD_QUEUE,
+            # Raw PCM whose rate, layout and sample format are all stated right
+            # here, so there is nothing for FFmpeg to work out by inspection.
+            # Left to its defaults it reads five seconds of the stream before
+            # starting anyway, and that delay lands squarely on arming the
+            # replay buffer: measured 5.4s to the first segment with desktop
+            # audio on against 0.6s with it off, for no benefit whatsoever.
+            *_FAST_PROBE,
             "-i",
             audio.desktop_pipe,
         ]

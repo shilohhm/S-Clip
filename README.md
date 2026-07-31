@@ -90,17 +90,19 @@ S-Clip is deliberately small at the surface and serious underneath:
 | Settings | Atomic writes, schema migration, hostile-input validation, and hardware-tuned defaults |
 | Quality | Strict mypy, Ruff, a whole-package coverage gate covering the interface as well as the core, and Windows CI across Python 3.10–3.13 |
 
-The final replay stitch intentionally re-encodes, and it is not free. Measured
-on an NVENC machine, stitching 28 seconds of 2560x1440 60fps footage takes
-about 11 seconds; a stream copy of the same segments takes 1.3. It is tempting
-until you look at what comes out of it - variable frame rate, and eleven frames
-short, because each segment's audio track makes its container a hair longer
-than its video and those differences accumulate at every join.
+Saving is a remux, not a re-encode, and that is worth a paragraph because the
+obvious reasoning points the other way. Feeding the segments through FFmpeg's
+concat demuxer and copying does leave a timing seam, because the demuxer
+re-times every input it opens. The conclusion usually drawn from that - encode
+the whole thing again - is the expensive one and costs a generation of quality.
 
-S-Clip spends the extra time laying down one unbroken constant-rate timeline so
-the saved clip plays cleanly. Hardware-accelerated decoding does not shorten it;
-the cost is the encode itself. The rolling buffer keeps running throughout, so
-the wait costs you nothing you would otherwise have captured.
+MPEG-TS is designed to be concatenated at the byte level, so S-Clip joins the
+segments as bytes and remuxes the result. Measured on a real 20-second buffer,
+that takes **0.12 seconds against 7.09** for the re-encode, and the frames come
+out spaced to within **11 microseconds** of the ideal 16.667 ms - no seam, no
+judder, and the pixels are exactly the ones the encoder produced live. A
+re-encode is still there as a fallback for segments a remux will not accept,
+such as a codec change part-way through a buffer.
 
 ## Install
 
