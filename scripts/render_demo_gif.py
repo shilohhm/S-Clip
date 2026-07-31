@@ -24,6 +24,7 @@ out of the repository, while every pixel of interface remains real.
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import shutil
 import subprocess
@@ -193,6 +194,18 @@ class DemoPaths:
         self.assets_dir = _ROOT / "src" / "sclip" / "ui" / "assets"
 
 
+def _display_path(path: Path) -> str:
+    """Show a repo-relative path when possible, else the absolute one.
+
+    ``--output`` and ``--output-dir`` accept any location, including one
+    outside the working tree, so ``relative_to`` cannot be assumed to succeed.
+    """
+    try:
+        return str(path.relative_to(_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def _run_ffmpeg(ffmpeg: Path, argv: list[str], *, timeout: float) -> bool:
     try:
         result = subprocess.run(
@@ -300,8 +313,17 @@ def _capture_frames(
     """Walk the storyboard, writing one PNG per frame. Returns the frame count."""
     page = window._capture_page
     orb = getattr(page, "_orb", None)
+    pill = getattr(page, "_status_pill", None)
     index = 0
     phase = 0.0
+
+    # The page refreshes its live readout on a one-second timer. This script
+    # drives every render itself, so the timer only adds a wall-clock-dependent
+    # extra render that restarts the animations mid-frame -- which is exactly
+    # what stops the output being reproducible.
+    tick = getattr(page, "_tick_timer", None)
+    if tick is not None:
+        tick.stop()
 
     for beat in _storyboard():
         engine.play(beat)
@@ -320,18 +342,42 @@ def _capture_frames(
             render = getattr(page, "_render_state", None)
             if render is not None:
                 render(engine.state)
-            # The orb's sweep is normally driven by a QPropertyAnimation off
-            # wall-clock time; frames are grabbed far faster than real time, so
-            # the phase is advanced by hand to keep the ring moving.
-            if orb is not None:
-                phase = (phase + 11.0) % 360.0
-                orb.setProperty("phase", phase)
             for _ in range(3):
                 app.processEvents()
+
+            # Both animations are normally driven by a QPropertyAnimation off
+            # the wall clock, and frames are grabbed far faster than real time.
+            # Rendering restarts them, so they are stopped and then advanced by
+            # hand, last thing before the grab. The values come from the frame
+            # index rather than the clock, which keeps the ring sweeping and the
+            # status dot breathing while making the output reproducible.
+            phase = (phase + 11.0) % 360.0
+            _freeze_animations(orb, pill, phase=phase, index=index)
             window.grab().toImage().save(str(frame_dir / f"frame_{index:04d}.png"))
             index += 1
 
     return index
+
+
+def _freeze_animations(orb: object, pill: object, *, phase: float, index: int) -> None:
+    """Halt the running animations and set them to a frame-derived value.
+
+    Stopping first matters: a live ``QPropertyAnimation`` would otherwise
+    overwrite the value between here and the grab, on its own clock.
+    """
+    if orb is not None:
+        for name in ("_phase_anim", "_pulse_anim"):
+            animation = getattr(orb, name, None)
+            if animation is not None:
+                animation.stop()
+        orb.setProperty("phase", phase)  # type: ignore[attr-defined]
+        orb.setProperty("pulse", 0.5 + 0.5 * math.sin(index * 0.3))  # type: ignore[attr-defined]
+
+    if pill is not None:
+        animation = getattr(pill, "_animation", None)
+        if animation is not None:
+            animation.stop()
+        pill.setProperty("_opacity", 0.65 + 0.35 * math.sin(index * 0.35))  # type: ignore[attr-defined]
 
 
 def _encode_sample_library(ffmpeg: Path, *, clips_dir: Path, staging: Path) -> Path:
@@ -462,7 +508,7 @@ def render(output: Path) -> Path:
             app.processEvents()
 
     size_mb = output.stat().st_size / (1024 * 1024)
-    print(f"  wrote {output.relative_to(_ROOT)} ({size_mb:.1f} MB)")
+    print(f"  wrote {_display_path(output)} ({size_mb:.1f} MB)")
     return output
 
 

@@ -187,6 +187,38 @@ class DemoPaths:
         self.assets_dir = _ROOT / "src" / "sclip" / "ui" / "assets"
 
 
+def _pin_animations(window: MainWindow) -> None:
+    """Freeze every running animation at a fixed point before grabbing.
+
+    The record orb sweeps and the status dot pulses, both driven by
+    ``QPropertyAnimation`` off the wall clock. Grabbing without pinning them
+    makes the output depend on how long the process happened to take to reach
+    this line, so two runs of a supposedly deterministic renderer produce
+    different files. The values below are arbitrary but fixed: the sweep sits
+    at a pleasant angle rather than at its seam.
+    """
+    page = getattr(window, "_capture_page", None)
+    orb = getattr(page, "_orb", None)
+    if orb is not None:
+        orb.setProperty("phase", 300.0)
+        orb.setProperty("pulse", 0.5)
+    pill = getattr(page, "_status_pill", None)
+    if pill is not None:
+        pill.setProperty("_opacity", 1.0)
+
+
+def _display_path(path: Path) -> str:
+    """Show a repo-relative path when possible, else the absolute one.
+
+    ``--output`` and ``--output-dir`` accept any location, including one
+    outside the working tree, so ``relative_to`` cannot be assumed to succeed.
+    """
+    try:
+        return str(path.relative_to(_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def _run_ffmpeg(ffmpeg: Path, argv: list[str], *, timeout: float) -> bool:
     """Run one FFmpeg invocation, reporting success rather than raising."""
     try:
@@ -347,12 +379,13 @@ def render(output_dir: Path, *, width: int = 1240, height: int = 900) -> list[Pa
                 pool.waitForDone(20_000)
             for _ in range(24):
                 qt_app.processEvents()
+            _pin_animations(window)
 
             target = output_dir / f"sclip-{name}.png"
             if not window.grab().toImage().save(str(target)):
                 raise RuntimeError(f"Could not write screenshot to {target}")
             written.append(target)
-            print(f"  wrote {target.relative_to(_ROOT)}")
+            print(f"  wrote {_display_path(target)}")
 
         if pool is not None:
             pool.waitForDone(5_000)
