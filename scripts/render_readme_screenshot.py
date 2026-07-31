@@ -1,21 +1,37 @@
-"""Render the deterministic product screenshot used by the README.
+"""Render the deterministic product screenshots used by the README.
 
 Run from the repository root:
 
     python scripts/render_readme_screenshot.py
 
-The renderer uses protocol-compatible in-memory collaborators and generated
-clip thumbnails. It never starts FFmpeg, registers a global hotkey, or reads
-the developer's real capture directory.
+What this script is, precisely: the real :class:`~sclip.ui.main_window.MainWindow`,
+with the real widgets, the real stylesheet and the real packaged fonts, driven by
+in-memory collaborators so it can be rendered offscreen and reproducibly. It
+never starts a capture, registers a global hotkey, or reads the developer's own
+clips directory.
+
+What it deliberately does *not* do: invent things the application could not
+produce. An earlier version of this script painted four "gameplay" thumbnails
+with :class:`QPainter`, gave them esports file names the app's own naming scheme
+cannot generate, and attributed the capture to an audio device that exists on no
+machine. The screenshot flattered the app rather than describing it.
+
+Now the sample recordings are genuinely encoded by FFmpeg, thumbnailed through
+the same command the library page uses, and named the way S-Clip actually names
+files. The video content is an FFmpeg-generated gradient — plainly synthetic rather
+than borrowed footage — and the README says so. If FFmpeg is not
+on PATH the script still renders, showing the library's real empty state.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -23,24 +39,38 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
-from PySide6.QtCore import QRect, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QImage, QPainter, QPen  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from sclip.contracts import (  # noqa: E402
     AudioDevice,
+    BufferTelemetry,
     CaptureState,
     Hotkey,
     Monitor,
     Settings,
 )
+from sclip.core.ffmpeg import find_ffmpeg, popen_kwargs  # noqa: E402
 from sclip.ui import main_window as main_window_module  # noqa: E402
 from sclip.ui.main_window import MainWindow  # noqa: E402
 from sclip.ui.pages import capture_page, library_page, settings_page  # noqa: E402
 
+# Sample recordings, named exactly the way ``FFmpegCaptureEngine._clip_path``
+# names them: ``<prefix>_<YYYY-MM-DD>_<HH-MM-SS>.mp4``. Fixed timestamps keep
+# the render reproducible. Durations vary so the library shows a realistic
+# spread of sizes rather than four identical tiles.
+_SAMPLE_CLIPS: tuple[tuple[str, int, str, str], ...] = (
+    ("clip_2026-07-30_21-14-08.mp4", 30, "0x101B24", "0x2E6F8E"),
+    ("clip_2026-07-30_20-52-31.mp4", 30, "0x141018", "0x6E4A8C"),
+    ("recording_2026-07-30_20-05-17.mp4", 12, "0x101613", "0x3F7A55"),
+    ("clip_2026-07-29_23-41-55.mp4", 30, "0x1A1410", "0x8C6A3A"),
+)
+
+# Matches the thumbnail command in ``sclip.ui.pages.library_page``.
+_THUMB_SCALE_WIDTH = 320
+
 
 class DemoEngine:
-    """CaptureEngine stand-in fixed in the buffering state."""
+    """CaptureEngine stand-in holding a full replay window."""
 
     def __init__(self) -> None:
         self.state = CaptureState.BUFFERING
@@ -64,6 +94,22 @@ class DemoEngine:
     def save_replay_clip(self) -> None:
         self.state = CaptureState.SAVING
 
+    def telemetry(self) -> BufferTelemetry:
+        """A full 30-second window, sized like a real 1080p60 capture.
+
+        The figures are consistent with one another rather than flattering:
+        15 finished two-second segments is 30 seconds, and 31.4 MB across those
+        30 seconds works out at about 8.4 Mb/s — what this profile would
+        actually produce.
+        """
+        return BufferTelemetry(
+            buffered_seconds=30.0,
+            window_seconds=30,
+            segment_count=15,
+            segment_capacity=16,
+            bytes_on_disk=31_457_280,
+        )
+
     def shutdown(self) -> None:
         return
 
@@ -78,18 +124,24 @@ class DemoEngine:
 
 
 class DemoSettingsStore:
-    """SettingsStore stand-in with a competition-oriented capture profile."""
+    """SettingsStore stand-in holding an ordinary 1080p60 capture profile.
+
+    These are the application's own defaults for everything except the encoder,
+    which is set to NVENC so the Settings screenshot shows what the hardware
+    detection actually selects on a machine with an NVIDIA GPU.
+    """
 
     def __init__(self) -> None:
         self._settings = Settings(
-            resolution="2560x1440",
-            fps=144,
+            resolution="1920x1080",
+            fps=60,
             encoder="h264_nvenc",
             preset="p5",
-            audio_input="Tournament microphone",
+            crf=21,
+            audio_input="Microphone (Realtek High Definition Audio)",
             replay_buffer=True,
-            replay_seconds=45,
-            monitor="Display 1",
+            replay_seconds=30,
+            monitor="Monitor 1",
             clip_hotkey=Hotkey(key="F5"),
             record_hotkey=Hotkey(key="F6", ctrl=True),
         )
@@ -105,10 +157,10 @@ class DemoDevices:
     """DeviceRegistry stand-in for the settings page."""
 
     def monitors(self) -> list[Monitor]:
-        return [Monitor("Display 1", 0, 0, 2560, 1440, is_primary=True)]
+        return [Monitor("Monitor 1", 0, 0, 1920, 1080, is_primary=True)]
 
     def audio_devices(self) -> list[AudioDevice]:
-        return [AudioDevice("Tournament microphone", "input")]
+        return [AudioDevice("Microphone (Realtek High Definition Audio)", "input")]
 
 
 class DemoHotkeys:
@@ -135,75 +187,136 @@ class DemoPaths:
         self.assets_dir = _ROOT / "src" / "sclip" / "ui" / "assets"
 
 
-def _paint_thumbnail(path: Path, variant: int) -> None:
-    """Create a fictional gameplay thumbnail without external assets."""
-
-    image = QImage(336, 188, QImage.Format.Format_RGB32)
-    image.fill(QColor("#0B0D0E"))
-    painter = QPainter(image)
+def _run_ffmpeg(ffmpeg: Path, argv: list[str], *, timeout: float) -> bool:
+    """Run one FFmpeg invocation, reporting success rather than raising."""
     try:
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        accents = ("#D8F45B", "#FF5D66", "#73DC8C", "#F0B85C")
-        accent = QColor(accents[variant % len(accents)])
-
-        painter.fillRect(QRect(0, 0, 336, 34), QColor("#161A1D"))
-        painter.fillRect(QRect(18, 54, 190, 116), QColor("#101315"))
-        painter.fillRect(QRect(222, 54, 96, 52), QColor("#1D2226"))
-        painter.fillRect(QRect(222, 118, 96, 52), QColor("#1D2226"))
-
-        painter.setPen(QPen(QColor("#292F33"), 1))
-        for x in range(32, 336, 32):
-            painter.drawLine(x, 34, x, 188)
-        for y in range(50, 188, 24):
-            painter.drawLine(0, y, 336, y)
-
-        painter.setPen(QPen(QColor("#3D454B"), 3))
-        painter.drawRect(40, 72, 148, 76)
-        painter.drawLine(74, 72, 74, 112)
-        painter.drawLine(118, 108, 188, 108)
-        painter.drawLine(152, 108, 152, 148)
-
-        target_x = 60 + variant * 28
-        target_y = 92 + (variant % 2) * 28
-        painter.setPen(QPen(accent, 3))
-        painter.drawEllipse(target_x - 8, target_y - 8, 16, 16)
-        painter.drawLine(target_x - 15, target_y, target_x + 15, target_y)
-        painter.drawLine(target_x, target_y - 15, target_x, target_y + 15)
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(accent)
-        painter.drawEllipse(276 - variant * 7, 74 + variant * 5, 12, 12)
-    finally:
-        painter.end()
-
-    if not image.save(str(path), quality=92):
-        raise RuntimeError(f"Could not write generated thumbnail to {path}")
+        result = subprocess.run(
+            [str(ffmpeg), "-hide_banner", "-loglevel", "error", *argv],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+            **popen_kwargs(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"  FFmpeg call failed: {exc}", file=sys.stderr)
+        return False
+    if result.returncode != 0:
+        print(
+            f"  FFmpeg exited {result.returncode}: {result.stderr.strip()[-200:]}",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
-def _seed_clips(clips_dir: Path) -> None:
-    names = (
-        "ranked_final_round.mp4",
-        "overtime_clutch.mp4",
-        "clean_entry.mp4",
-        "match_point.mp4",
-    )
-    for index, name in enumerate(names):
+def _encode_sample_clips(clips_dir: Path) -> bool:
+    """Encode real sample recordings and their thumbnails with FFmpeg.
+
+    Returns ``False`` when FFmpeg is unavailable, in which case the render
+    proceeds and simply shows the genuine empty state.
+    """
+    try:
+        ffmpeg = find_ffmpeg()
+    except Exception as exc:
+        print(f"  FFmpeg not found ({exc}); rendering the empty library state")
+        return False
+
+    for name, seconds, colour_a, colour_b in _SAMPLE_CLIPS:
         clip = clips_dir / name
-        clip.write_bytes(b"SCLIP_README_DEMO")
-        _paint_thumbnail(clip.with_suffix(".mp4.thumb.jpg"), index)
+        encoded = _run_ffmpeg(
+            ffmpeg,
+            [
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                f"gradients=size=1280x720:rate=30:c0={colour_a}:c1={colour_b}"
+                f":x0=120:y0=80:x1=1160:y1=640:nb_colors=2:speed=0.02",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=frequency=220:duration={seconds}",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-shortest",
+                "-t",
+                str(seconds),
+                "-movflags",
+                "+faststart",
+                str(clip),
+            ],
+            timeout=120.0,
+        )
+        if not encoded:
+            return False
+
+        # Same command the library's thumbnail worker runs, so the tiles in the
+        # screenshot come from the real thumbnail path.
+        _run_ffmpeg(
+            ffmpeg,
+            [
+                "-ss",
+                "1",
+                "-i",
+                str(clip),
+                "-frames:v",
+                "1",
+                "-vf",
+                f"scale={_THUMB_SCALE_WIDTH}:-1",
+                "-y",
+                str(clip.with_suffix(clip.suffix + ".thumb.jpg")),
+            ],
+            timeout=60.0,
+        )
+        _stamp_from_name(clip)
+        print(f"  encoded {name} ({seconds}s)")
+    return True
 
 
-def render(output: Path, *, width: int = 1240, height: int = 900) -> None:
-    output.parent.mkdir(parents=True, exist_ok=True)
+def _stamp_from_name(clip: Path) -> None:
+    """Backdate a sample clip so its mtime agrees with its file name.
+
+    The library sorts by modification time and prints it under each tile, so a
+    clip called ``clip_2026-07-29_23-41-55.mp4`` that claims it was written
+    today reads as an obvious prop. Parsing the timestamp back out of the name
+    keeps the demo internally consistent.
+    """
+    stem = clip.stem
+    try:
+        _prefix, date_part, time_part = stem.split("_", 2)
+        moment = datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H-%M-%S")
+    except ValueError:
+        return
+    stamp = moment.timestamp()
+    os.utime(clip, (stamp, stamp))
+    thumb = clip.with_suffix(clip.suffix + ".thumb.jpg")
+    if thumb.is_file():
+        os.utime(thumb, (stamp, stamp))
+
+
+def render(output_dir: Path, *, width: int = 1240, height: int = 900) -> list[Path]:
+    """Render every page and return the files written."""
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     app = QApplication.instance()
     owns_app = app is None
     qt_app = QApplication([]) if app is None else app
 
+    written: list[Path] = []
     with tempfile.TemporaryDirectory(prefix="sclip-readme-", dir=_ROOT) as temp_dir:
         clips_dir = Path(temp_dir) / "clips"
         clips_dir.mkdir()
-        _seed_clips(clips_dir)
+        print("Encoding sample recordings...")
+        _encode_sample_clips(clips_dir)
         demo_paths = DemoPaths(clips_dir)
 
         # These UI modules import app_paths directly, so patch each local name.
@@ -223,16 +336,33 @@ def render(output: Path, *, width: int = 1240, height: int = 900) -> None:
         for _ in range(16):
             qt_app.processEvents()
 
-        if not window.grab().toImage().save(str(output)):
-            raise RuntimeError(f"Could not write screenshot to {output}")
-
         library = getattr(window, "_library_page", None)
         pool = getattr(library, "_pool", None)
+
+        for index, name in enumerate(("capture", "library", "settings", "about")):
+            window._set_current_page(index)
+            # The library page thumbnails on a worker pool; let it settle so the
+            # screenshot shows loaded tiles rather than "Generating preview…".
+            if pool is not None:
+                pool.waitForDone(20_000)
+            for _ in range(24):
+                qt_app.processEvents()
+
+            target = output_dir / f"sclip-{name}.png"
+            if not window.grab().toImage().save(str(target)):
+                raise RuntimeError(f"Could not write screenshot to {target}")
+            written.append(target)
+            print(f"  wrote {target.relative_to(_ROOT)}")
+
         if pool is not None:
             pool.waitForDone(5_000)
         watcher = getattr(library, "_watcher", None)
         if watcher is not None:
             watcher.removePaths(watcher.directories())
+        tray = getattr(window, "_tray", None)
+        if tray is not None:
+            tray.hide()
+        window._force_quit = True
         window.close()
         window.deleteLater()
         for _ in range(4):
@@ -240,20 +370,24 @@ def render(output: Path, *, width: int = 1240, height: int = 900) -> None:
 
     if owns_app:
         qt_app.quit()
+    return written
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output",
+        "--output-dir",
         type=Path,
-        default=_ROOT / "docs" / "assets" / "sclip-capture.png",
+        default=_ROOT / "docs" / "assets",
     )
     parser.add_argument("--width", type=int, default=1240)
     parser.add_argument("--height", type=int, default=900)
     args = parser.parse_args()
-    render(args.output.resolve(), width=max(960, args.width), height=max(640, args.height))
-    print(args.output.resolve())
+    render(
+        args.output_dir.resolve(),
+        width=max(960, args.width),
+        height=max(640, args.height),
+    )
     return 0
 
 

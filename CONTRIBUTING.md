@@ -46,8 +46,14 @@ Describe the user-visible effect, the tradeoffs you considered, and how you
 verified the change. Include a screenshot for visual changes and add a focused
 regression test for bug fixes.
 
-To regenerate the README product image after a UI change:
+To regenerate the README product images after a UI change:
 
 ```powershell
 python scripts/render_readme_screenshot.py
 ```
+
+This writes all four page screenshots into `docs/assets/`. It encodes its own
+sample recordings with FFmpeg, so keep FFmpeg on `PATH`; without it the render
+still succeeds but shows the empty library state. Do not hand-edit the images
+or feed the renderer data the application could not itself produce — the point
+of the script is that the README shows the app as it really is.
