@@ -50,7 +50,7 @@ class _FakeRollingBuffer:
 
     It implements only the surface the capture engine touches: ``start``,
     ``stop``, ``is_running``, ``set_error_handler`` and ``save_clip``. The
-    ``start`` method is a no-op flag flip — no FFmpeg process is involved —
+    ``start`` method is a no-op flag flip - no FFmpeg process is involved -
     and ``save_clip`` sleeps to imitate a slow re-encode so a test can prove
     the engine did not block on it.
     """
@@ -111,7 +111,7 @@ class _FakeSettingsStore:
     """Minimal settings store with desktop/microphone audio switched off.
 
     Disabling audio keeps the engine's capture-IO building entirely in pure
-    Python — no desktop-audio pump is started — so the test never touches
+    Python - no desktop-audio pump is started - so the test never touches
     real audio hardware.
     """
 
@@ -165,8 +165,8 @@ def fast_engine(sandbox_paths: Path) -> FFmpegCaptureEngine:
     """An engine wired to an instant fake buffer, with paths sandboxed.
 
     ``_FakeRollingBuffer`` matches the ``Callable[[Path], RollingBuffer]``
-    factory shape directly — its extra ``stitch_seconds`` argument is
-    keyword-only with a default — so it can be passed as the factory as-is.
+    factory shape directly - its extra ``stitch_seconds`` argument is
+    keyword-only with a default - so it can be passed as the factory as-is.
     """
     return FFmpegCaptureEngine(
         _FakeSettingsStore(),
@@ -236,7 +236,7 @@ def test_save_replay_clip_returns_before_the_stitch_finishes(
         elapsed = time.monotonic() - started
 
         assert elapsed < _PROMPT_RETURN_SECONDS, (
-            f"save_replay_clip blocked for {elapsed:.2f}s — it should return "
+            f"save_replay_clip blocked for {elapsed:.2f}s - it should return "
             "immediately and stitch on a worker thread"
         )
         # The engine flips to SAVING synchronously while the worker runs.
@@ -333,7 +333,7 @@ def test_buffer_internal_failure_fires_exactly_one_error(
         # Wait long enough for the worker to finish all its work.
         assert notified.wait(timeout=_NOTIFY_TIMEOUT_SECONDS)
         # Give the worker a beat to run any extra (errantly duplicated) work
-        # — without this slack a buggy implementation could pass the count
+        # - without this slack a buggy implementation could pass the count
         # assertion below simply because the second notification has not
         # arrived yet. Tuned generously relative to the fake's 50 ms stitch.
         time.sleep(0.3)
@@ -353,7 +353,7 @@ def test_a_worker_exception_routes_to_the_error_listener(
     """If the stitch raises, the worker must surface the failure to listeners.
 
     Regression for R4 H2: previously an exception from inside ``save_clip``
-    escaped the daemon worker silently — the user pressed the hotkey and
+    escaped the daemon worker silently - the user pressed the hotkey and
     saw nothing happen.
     """
     buffer = _FakeRollingBuffer(

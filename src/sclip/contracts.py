@@ -50,7 +50,7 @@ class Monitor:
 
     @property
     def geometry(self) -> tuple[int, int, int, int]:
-        """``(x, y, width, height)`` — handy for FFmpeg ``gdigrab`` args."""
+        """``(x, y, width, height)`` - handy for FFmpeg ``gdigrab`` args."""
         return self.x, self.y, self.width, self.height
 
 
@@ -148,7 +148,7 @@ def encoder_by_codec(codec: str) -> EncoderSpec | None:
 #
 # Kept in the contracts layer (rather than in ``core.hardware``) because the UI
 # needs these labels without any dependency on hardware-probing code. The
-# previous placement — inside the hardware module — was a layering violation:
+# previous placement - inside the hardware module - was a layering violation:
 # the UI reached into a core *implementation* module for what is really pure,
 # portable data.
 _ENCODER_LABELS: dict[str, str] = {
@@ -185,7 +185,7 @@ class Settings:
     preset: str = "veryfast"
     crf: int = 20
     audio_input: str = ""  # dshow microphone device name; "" means no microphone
-    capture_audio: bool = True  # master switch — when off, no audio is captured
+    capture_audio: bool = True  # master switch - when off, no audio is captured
     capture_desktop_audio: bool = True  # capture system sound via WASAPI loopback
     replay_buffer: bool = True
     replay_seconds: int = 30
@@ -199,7 +199,7 @@ class Settings:
     auto_configure: bool = True
 
     def copy(self) -> Settings:
-        """Return an independent copy — used when the settings page begins editing.
+        """Return an independent copy - used when the settings page begins editing.
 
         Implemented with :func:`dataclasses.replace` so adding a new field to
         :class:`Settings` is automatically reflected here.  The old hand-written
@@ -220,8 +220,8 @@ class BufferTelemetry:
     the target back as though it were already available.
 
     ``buffered_seconds`` is derived from the same segment snapshot the save
-    path uses — including the rule that discards the segment the muxer is still
-    writing — which is what keeps the readout and the saved clip in agreement.
+    path uses - including the rule that discards the segment the muxer is still
+    writing - which is what keeps the readout and the saved clip in agreement.
     """
 
     buffered_seconds: float  # what a save would actually produce right now
@@ -273,7 +273,7 @@ class CaptureEngine(Protocol):
     supports any number of listeners per event, so several parts of the GUI
     (the capture page, the main window, the tray) can each react to a state
     change, a saved clip or an error without contending for a single slot.
-    Listener callbacks may fire on a worker thread — the GUI marshals them
+    Listener callbacks may fire on a worker thread - the GUI marshals them
     back onto the Qt thread itself.
     """
 

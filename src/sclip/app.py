@@ -217,7 +217,7 @@ def _apply_first_run_recommendation(
     Presence of the settings file is the "has run before" signal. When it is
     absent we probe the machine and persist a recommended configuration, so
     the user opens straight into something sensible. Any failure here is
-    non-fatal — the app simply falls back to the built-in defaults.
+    non-fatal - the app simply falls back to the built-in defaults.
     """
     if app_paths().settings_file.exists():
         return
@@ -390,7 +390,7 @@ class _DisabledCaptureEngine:
 
     All methods are no-ops; this keeps the GUI navigable when FFmpeg is
     missing or the capture engine module has not landed yet. The listener
-    registration methods accept callbacks and quietly drop them — this stub
+    registration methods accept callbacks and quietly drop them - this stub
     never emits an event, so there is nothing for a listener to observe.
     """
 

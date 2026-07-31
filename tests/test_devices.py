@@ -79,7 +79,7 @@ def test_parse_dshow_devices_returns_empty_for_empty_input() -> None:
 
 
 def test_parse_dshow_devices_deduplicates_repeated_entries() -> None:
-    """Some FFmpeg builds repeat the same device entry — only one should reach us."""
+    """Some FFmpeg builds repeat the same device entry - only one should reach us."""
     blob = (
         "[dshow @ 0x1] DirectShow audio devices\n"
         '[dshow @ 0x1] "Mic A" (audio)\n'
@@ -178,7 +178,7 @@ def _install_fake_screeninfo(
     """Drop a fake ``screeninfo`` module into ``sys.modules`` for the test.
 
     ``_enumerate_monitors`` imports ``screeninfo`` lazily inside the function
-    body, so a module-level stub here is enough — we do not have to import
+    body, so a module-level stub here is enough - we do not have to import
     the real package first.
     """
     import sys
@@ -255,7 +255,7 @@ def test_live_ffmpeg_audio_devices_returns_correct_types() -> None:
     """Smoke test that exercises the real FFmpeg binary on the host.
 
     Skipped automatically when no FFmpeg binary is available on PATH or via
-    the bundled lookup. We only assert on the *type* of the result — the
+    the bundled lookup. We only assert on the *type* of the result - the
     concrete devices vary from machine to machine.
     """
     if devices_module._resolve_ffmpeg() is None:

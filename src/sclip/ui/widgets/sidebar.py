@@ -111,7 +111,7 @@ class Sidebar(QWidget):
                 # provided so the first nav item does not crowd the title.
                 layout.addSpacing(SPACING_XS)
         else:
-            # No header — give the first nav item a little breathing room
+            # No header - give the first nav item a little breathing room
             # below the title bar.
             layout.addSpacing(SPACING_MD)
 

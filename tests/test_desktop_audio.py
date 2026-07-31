@@ -70,7 +70,7 @@ def test_silence_still_keeps_the_pipe_moving() -> None:
 
     A WASAPI loopback endpoint hands back nothing at all while the system is
     quiet rather than buffers of zeroes. The loop used to block on read, so the
-    pipe stopped advancing and FFmpeg starved on an input that never moved —
+    pipe stopped advancing and FFmpeg starved on an input that never moved -
     the capture produced no segments whatsoever. A muted game was enough to
     make S-Clip silently record nothing.
     """

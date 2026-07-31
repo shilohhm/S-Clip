@@ -1,14 +1,14 @@
-"""The record orb — the capture screen's centrepiece control.
+"""The record orb - the capture screen's centrepiece control.
 
 One large, custom-painted button that is always "the obvious next action":
 start a recording, arm the replay buffer, or save a clip. It carries the
-engine's state visually — a calm violet rim at rest, a breathing red pulse
+engine's state visually - a calm violet rim at rest, a breathing red pulse
 while recording, a cyan arc sweeping round while the replay buffer rolls, a
 fast spinner while a clip is being written.
 
 Everything here is QPainter work because the orb needs a soft radial glow and
 animated arcs, neither of which a stylesheet can express. The page above it
-stays in charge of *meaning* — it decides which glyph and animation suit the
+stays in charge of *meaning* - it decides which glyph and animation suit the
 current state and tells the orb through :meth:`set_visual`; the orb only
 decides how to paint them.
 """
@@ -44,15 +44,15 @@ logger = logging.getLogger(__name__)
 
 
 # Glyph drawn in the centre of the orb.
-GLYPH_CIRCLE = "circle"  # a filled disc — "go": start, arm, save
-GLYPH_SQUARE = "square"  # a rounded square — "stop"
+GLYPH_CIRCLE = "circle"  # a filled disc - "go": start, arm, save
+GLYPH_SQUARE = "square"  # a rounded square - "stop"
 GLYPH_SPINNER = "spinner"  # no centre glyph; the ring spins instead
 
 # Ring animation styles.
-ANIM_NONE = "none"  # a steady ring — armed but idle
-ANIM_PULSE = "pulse"  # the ring and glow breathe — recording
-ANIM_SWEEP = "sweep"  # a bright arc circles slowly — the buffer is rolling
-ANIM_SPIN = "spin"  # a short arc circles quickly — saving a clip
+ANIM_NONE = "none"  # a steady ring - armed but idle
+ANIM_PULSE = "pulse"  # the ring and glow breathe - recording
+ANIM_SWEEP = "sweep"  # a bright arc circles slowly - the buffer is rolling
+ANIM_SPIN = "spin"  # a short arc circles quickly - saving a clip
 
 # The orb claims a generous square so the glow has room to fall off softly.
 ORB_EXTENT_DEFAULT: int = 248
@@ -299,7 +299,7 @@ class RecordOrb(QWidget):
         painter.drawEllipse(centre, radius, radius)
 
     def _paint_ring(self, painter: QPainter, centre: QPointF, side: float) -> None:
-        """Paint the ring — steady, breathing, sweeping or spinning."""
+        """Paint the ring - steady, breathing, sweeping or spinning."""
         radius = side * 0.38
         width = max(3.0, side * 0.022)
         ring_rect = QRectF(centre.x() - radius, centre.y() - radius, radius * 2, radius * 2)
@@ -323,7 +323,7 @@ class RecordOrb(QWidget):
         elif self._animation == ANIM_SPIN:
             self._paint_arc(painter, ring_rect, width, span_deg=80.0)
         elif self._interactive:
-            # Idle but armed — a steady, half-lit accent ring.
+            # Idle but armed - a steady, half-lit accent ring.
             lit = QColor(self._accent)
             lit.setAlphaF(0.55)
             painter.setPen(QPen(lit, width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
@@ -393,7 +393,7 @@ class RecordOrb(QWidget):
             half = side * 0.072
             square = QRectF(centre.x() - half, centre.y() - half, half * 2, half * 2)
             painter.drawRoundedRect(square, half * 0.32, half * 0.32)
-        # GLYPH_SPINNER intentionally draws no centre mark — the spinning ring
+        # GLYPH_SPINNER intentionally draws no centre mark - the spinning ring
         # already reads as "working".
 
 

@@ -18,8 +18,8 @@ machine. The screenshot flattered the app rather than describing it.
 
 Now the sample recordings are genuinely encoded by FFmpeg, thumbnailed through
 the same command the library page uses, and named the way S-Clip actually names
-files. The video content is an FFmpeg-generated gradient — plainly synthetic rather
-than borrowed footage — and the README says so. If FFmpeg is not
+files. The video content is an FFmpeg-generated gradient - plainly synthetic rather
+than borrowed footage - and the README says so. If FFmpeg is not
 on PATH the script still renders, showing the library's real empty state.
 """
 
@@ -99,7 +99,7 @@ class DemoEngine:
 
         The figures are consistent with one another rather than flattering:
         15 finished two-second segments is 30 seconds, and 31.4 MB across those
-        30 seconds works out at about 8.4 Mb/s — what this profile would
+        30 seconds works out at about 8.4 Mb/s - what this profile would
         actually produce.
         """
         return BufferTelemetry(

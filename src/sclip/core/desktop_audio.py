@@ -1,6 +1,6 @@
 """Desktop-audio capture via the Windows WASAPI loopback API.
 
-FFmpeg cannot capture desktop sound on Windows on its own — its ``dshow``
+FFmpeg cannot capture desktop sound on Windows on its own - its ``dshow``
 input only sees *capture* devices (microphones), never the speakers. Tools
 like OBS and Medal get around this with WASAPI loopback, a built-in Windows
 facility that hands back exactly what a playback device is outputting, with
@@ -30,7 +30,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-# How many sample frames to pull from WASAPI per read. About 21 ms at 48 kHz —
+# How many sample frames to pull from WASAPI per read. About 21 ms at 48 kHz -
 # small enough to keep latency low, large enough to avoid thrashing the pipe.
 _READ_FRAMES: int = 1024
 
@@ -89,7 +89,7 @@ class _OutboundPipe:
             self._name,
             _PIPE_ACCESS_OUTBOUND,
             _PIPE_TYPE_BYTE | _PIPE_WAIT,
-            1,  # one instance — exactly one FFmpeg reader
+            1,  # one instance - exactly one FFmpeg reader
             _PIPE_BUFFER_BYTES,
             _PIPE_BUFFER_BYTES,
             0,
@@ -111,7 +111,7 @@ class _OutboundPipe:
         if not connected:
             error = ctypes.get_last_error()
             # ERROR_PIPE_CONNECTED (535) means a reader connected in the gap
-            # between create and connect — that is success, not failure.
+            # between create and connect - that is success, not failure.
             if error not in (0, 535):
                 raise OSError(error, "ConnectNamedPipe failed")
 
@@ -238,7 +238,7 @@ class DesktopAudioPump:
                 return
             self._stop_event.set()
             # If FFmpeg never connected, the worker is parked in
-            # wait_for_reader — nudge it loose so the thread can exit.
+            # wait_for_reader - nudge it loose so the thread can exit.
             if pipe is not None and not self._connected.is_set():
                 pipe.unblock_wait()
 
@@ -277,7 +277,7 @@ class DesktopAudioPump:
             for loopback in loopbacks:
                 if target in str(loopback["name"]):
                     return dict(loopback)
-            # No exact match — fall back to the first loopback device so the
+            # No exact match - fall back to the first loopback device so the
             # feature still works on an unusual audio configuration.
             if loopbacks:
                 return dict(loopbacks[0])
@@ -298,7 +298,7 @@ class DesktopAudioPump:
         """Forward loopback PCM to the pipe at real time until asked to stop.
 
         A WASAPI loopback endpoint delivers nothing at all while the system is
-        silent — it does not hand back buffers of zeroes. Blocking on ``read``
+        silent - it does not hand back buffers of zeroes. Blocking on ``read``
         therefore stalls this thread whenever nothing is playing, the pipe stops
         advancing, and FFmpeg starves on an input that never moves. The capture
         then produces no segments whatsoever, so a muted game or a menu screen
@@ -325,7 +325,7 @@ class DesktopAudioPump:
                 chunk = silence
 
             if not pipe.write(chunk):
-                # FFmpeg closed the pipe — normal at the end of a recording.
+                # FFmpeg closed the pipe - normal at the end of a recording.
                 if not self._stop_event.is_set():
                     logger.debug("Desktop-audio reader closed the pipe")
                 return

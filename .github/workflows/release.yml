@@ -5,7 +5,7 @@ name: Release
 #     git tag v2.0.0 && git push origin v2.0.0
 #
 # The workflow can also be run by hand from the Actions tab, which builds and
-# uploads the installer as a run artifact without publishing a release — useful
+# uploads the installer as a run artifact without publishing a release - useful
 # for checking a packaging change before committing to a version number.
 
 on:
@@ -88,7 +88,7 @@ jobs:
       # Written with LF endings and no BOM on purpose. Out-File would give the
       # line a CRLF terminator, and `sha256sum -c` then treats the carriage
       # return as part of the file name and reports the download as unreadable
-      # — which looks exactly like a corrupted download to anyone checking it.
+      # - which looks exactly like a corrupted download to anyone checking it.
       - name: Checksum the installer
         shell: pwsh
         run: |
@@ -121,7 +121,7 @@ jobs:
           user only, so there is no administrator prompt.
 
           **The installer is not code-signed.** Windows SmartScreen will show a
-          "Windows protected your PC" warning on first run — choose **More info**
+          "Windows protected your PC" warning on first run - choose **More info**
           then **Run anyway**. Verify the download against ``SHA256SUMS.txt`` if
           you would rather check it yourself.
 

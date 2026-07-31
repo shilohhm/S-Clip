@@ -1,4 +1,4 @@
-"""S-Clip — a lightweight Windows screen recorder with a real rolling replay buffer."""
+"""S-Clip - a lightweight Windows screen recorder with a real rolling replay buffer."""
 
 from sclip.version import __version__
 

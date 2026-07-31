@@ -2,7 +2,7 @@
 
 A rotating file handler keeps the on-disk log bounded, and we mirror everything
 to stderr at the configured level so developers running from a terminal still
-see what is happening. ``configure_logging`` is idempotent — calling it twice
+see what is happening. ``configure_logging`` is idempotent - calling it twice
 will not double up handlers.
 """
 
@@ -26,7 +26,7 @@ _CONFIGURED_FLAG: Final = "_sclip_logging_configured"
 def configure_logging(level: int = logging.INFO, *, log_file: Path | None = None) -> None:
     """Wire up rotating-file and stderr handlers on the root logger.
 
-    Safe to call repeatedly — the second call is a no-op.
+    Safe to call repeatedly - the second call is a no-op.
     """
     root = logging.getLogger()
     if getattr(root, _CONFIGURED_FLAG, False):

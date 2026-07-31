@@ -48,7 +48,7 @@ def test_settings_copy_is_independent_of_original() -> None:
     original = Settings()
     copy = original.copy()
 
-    # Act — mutate everything in the copy.
+    # Act - mutate everything in the copy.
     copy.resolution = "640x480"
     copy.fps = 30
     copy.encoder = "h264_nvenc"
@@ -57,7 +57,7 @@ def test_settings_copy_is_independent_of_original() -> None:
     copy.audio_input = "Test"
     copy.replay_seconds = 90
 
-    # Assert — the original still holds the contract defaults.
+    # Assert - the original still holds the contract defaults.
     assert original.resolution == "1920x1080"
     assert original.fps == 60
     assert original.encoder == "libx264"
@@ -123,7 +123,7 @@ def test_capture_state_is_string_enum() -> None:
 
 
 def test_capture_mode_is_string_enum() -> None:
-    """``CaptureMode`` mirrors :class:`CaptureState` — also a string enum."""
+    """``CaptureMode`` mirrors :class:`CaptureState` - also a string enum."""
     assert CaptureMode("replay_buffer") is CaptureMode.REPLAY_BUFFER
     assert CaptureMode("manual") is CaptureMode.MANUAL
 

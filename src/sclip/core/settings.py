@@ -61,7 +61,7 @@ class JsonSettingsStore:
     def load(self) -> Settings:
         """Read settings from disk, returning defaults if anything goes wrong.
 
-        We never raise on a missing or corrupt file — the app needs to launch
+        We never raise on a missing or corrupt file - the app needs to launch
         even if the user has scribbled invalid JSON over the config.
         """
         if not self._path.exists():
@@ -91,7 +91,7 @@ class JsonSettingsStore:
         """Validate, then atomically persist ``settings`` to disk.
 
         Writes to ``settings.json.tmp`` first and then ``os.replace``s it onto
-        the real file — on POSIX and modern Windows this is atomic, so a crash
+        the real file - on POSIX and modern Windows this is atomic, so a crash
         mid-write leaves either the old file or the new one, never a torn one.
         """
         # Run the same validation pass we use on load so a programmatic caller
@@ -133,7 +133,7 @@ def _settings_from_dict(data: dict[str, Any]) -> Settings:
     # Legacy key migration. The old shape stored ``audio_device`` for what the
     # new contract calls ``audio_input``, and a bare string hotkey rather than
     # a structured chord. We only honour the legacy key if the new one is
-    # absent — that way a partially migrated file keeps its newer values.
+    # absent - that way a partially migrated file keeps its newer values.
     if "audio_input" not in data and "audio_device" in data:
         data = {**data, "audio_input": data["audio_device"]}
 
@@ -197,7 +197,7 @@ def _validated_copy(settings: Settings) -> Settings:
     """Return a :class:`Settings` with every field passed through the coercers.
 
     Called from :meth:`JsonSettingsStore.save` so anything we write was checked
-    the same way we check things we read — if a bug elsewhere is mutating a
+    the same way we check things we read - if a bug elsewhere is mutating a
     field into something silly, the file on disk still ends up sane.
     """
     return _settings_from_dict(_settings_to_dict(settings))
@@ -221,7 +221,7 @@ def _coerce_resolution(value: Any, default: str) -> str:
 def _coerce_int(value: Any, default: int, lo: int, hi: int, field_name: str) -> int:
     """Coerce ``value`` to ``int`` and clamp it into ``[lo, hi]``."""
     try:
-        # ``bool`` is a subclass of ``int`` — exclude it explicitly so True
+        # ``bool`` is a subclass of ``int`` - exclude it explicitly so True
         # doesn't sneak in as ``1`` for things like fps.
         if isinstance(value, bool):
             raise TypeError
@@ -256,13 +256,13 @@ def _coerce_str(value: Any, default: str) -> str:
     return default
 
 
-def _coerce_audio_input(value: Any, default: str) -> str:  # noqa: PLR0911 — early returns per rejection reason are clearer than a flag/break ladder
+def _coerce_audio_input(value: Any, default: str) -> str:  # noqa: PLR0911 - early returns per rejection reason are clearer than a flag/break ladder
     """Validate a DirectShow audio-device name loaded from settings.
 
     ``settings.json`` is hand-editable, so the device name reaches us as raw
     user input before it is glued into an FFmpeg argv element. We accept any
     legitimate Windows audio-device name but reject values that look engineered
-    to confuse FFmpeg's dshow demuxer or its argument parsing — leading ``-``
+    to confuse FFmpeg's dshow demuxer or its argument parsing - leading ``-``
     (which the parser might read as an option), embedded ASCII control
     characters, or absurd length. A rejected value falls back to ``""`` (no
     microphone) so a hostile or fat-fingered file still leaves the app
@@ -299,12 +299,12 @@ def _coerce_audio_input(value: Any, default: str) -> str:  # noqa: PLR0911 — e
     return value
 
 
-def _coerce_output_dir(value: Any, default: str) -> str:  # noqa: PLR0911 — early returns per rejection reason are clearer than a flag/break ladder
+def _coerce_output_dir(value: Any, default: str) -> str:  # noqa: PLR0911 - early returns per rejection reason are clearer than a flag/break ladder
     """Validate a custom clip output directory loaded from settings.
 
     Accepts an empty string (meaning "use the platform default") and absolute
     local paths. A non-absolute path is ambiguous (relative to *what*?) and a
-    UNC path is a remote-mount footgun — opening one as a write target can
+    UNC path is a remote-mount footgun - opening one as a write target can
     trigger an outbound SMB auth that leaks the user's NTLM hash. Either
     pattern falls back to ``""`` so the engine uses :func:`app_paths().clips_dir`.
     """
@@ -345,7 +345,7 @@ def _coerce_encoder(value: Any) -> str:
 def _coerce_preset(encoder: str, value: Any) -> str:
     """Ensure the preset belongs to the chosen encoder, else pick a sensible one."""
     spec = encoder_by_codec(encoder) or encoder_by_codec(_DEFAULT_ENCODER)
-    if spec is None:  # should be unreachable — libx264 is always in ENCODERS
+    if spec is None:  # should be unreachable - libx264 is always in ENCODERS
         return _DEFAULT_PRESET
 
     if isinstance(value, str) and value in spec.presets:

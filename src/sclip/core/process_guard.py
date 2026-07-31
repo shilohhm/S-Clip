@@ -2,8 +2,8 @@
 
 S-Clip's capture is an FFmpeg process it spawns and later stops. The stop path
 is careful, but it only runs when S-Clip gets the chance to run it. If the
-application is killed outright — Task Manager's "End task", a crash, an
-installer force-closing it during an upgrade — nothing sends FFmpeg the ``q``,
+application is killed outright - Task Manager's "End task", a crash, an
+installer force-closing it during an upgrade - nothing sends FFmpeg the ``q``,
 and it inherits none of the parent's mortality. The result observed in testing
 was a capture that carried on recording the screen for thirty-four minutes
 after the application had gone, writing segments into the buffer directory the
@@ -12,7 +12,7 @@ whole time, with no window and no tray icon to reveal it.
 Two things make that worse than a stray process. It is a privacy problem: the
 screen is still being recorded and nothing on screen says so. And the segments
 it leaves behind are indistinguishable from a live session's, so the *next*
-capture stitches them into its clip — a saved clip that silently contains
+capture stitches them into its clip - a saved clip that silently contains
 footage from before.
 
 Windows has a purpose-built answer. A job object with

@@ -9,7 +9,7 @@
 ; Note on user data: S-Clip keeps settings, logs and recorded clips under
 ; %APPDATA%\S-Clip, which is deliberately outside the install directory. The
 ; uninstaller therefore removes the program and leaves the user's recordings
-; alone. Do not add an [UninstallDelete] entry for that folder — deleting
+; alone. Do not add an [UninstallDelete] entry for that folder - deleting
 ; somebody's saved clips because they uninstalled the recorder would be a
 ; hostile thing to do.
 

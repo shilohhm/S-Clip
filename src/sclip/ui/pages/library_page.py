@@ -595,7 +595,7 @@ class LibraryPage(QWidget):
         layout.setContentsMargins(SPACING_XL, SPACING_XL, SPACING_XL, SPACING_XL)
         layout.setSpacing(SPACING_XXS)
 
-        message = QLabel("No clips yet — your saved clips will appear here.", panel)
+        message = QLabel("No clips yet - your saved clips will appear here.", panel)
         message.setProperty("role", "muted")
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignmentFlag.AlignCenter)

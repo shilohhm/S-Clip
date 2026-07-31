@@ -8,7 +8,7 @@ A note on screen capture, because it is the whole reason this rewrite exists.
 The previous version captured with ``gdigrab``, which scrapes the screen
 through the GDI BitBlt path. At 1440p60 that path simply cannot keep up: it
 delivers frames late and unevenly, so every saved clip judders. We now
-capture with ``ddagrab`` instead — FFmpeg's wrapper around the Windows
+capture with ``ddagrab`` instead - FFmpeg's wrapper around the Windows
 Desktop Duplication API. It runs on the GPU, hands frames back at the true
 refresh rate, and (with ``dup_frames``) emits perfectly constant-rate video.
 ``gdigrab`` is kept only as a fallback for the rare machine where Desktop
@@ -45,7 +45,7 @@ _AUDIO_THREAD_QUEUE: str = "1024"
 # legacy MP3 track the old code wrote, sits cleanly inside both MP4 and the
 # MPEG-TS segments the replay buffer rotates through. Public so the replay
 # buffer's clip-stitch step encodes audio at the same bitrate as the live
-# capture — one source of truth keeps the two paths in lockstep.
+# capture - one source of truth keeps the two paths in lockstep.
 AUDIO_BITRATE: str = "192k"
 
 
@@ -191,7 +191,7 @@ def ffprobe_path() -> Path:
 def popen_kwargs() -> dict[str, Any]:
     """Subprocess kwargs that suppress the console window on Windows.
 
-    Used by every FFmpeg invocation, including the brief device-list probe —
+    Used by every FFmpeg invocation, including the brief device-list probe -
     flashing a black console for a 200 ms call is just as ugly as flashing
     one for a long-running recording.
     """
@@ -255,7 +255,7 @@ def start_ffmpeg(
     The caller owns the process lifecycle entirely. It must stop the process
     explicitly via :func:`stop_ffmpeg` when the capture is no longer needed.
     There is no automatic teardown: this function is a plain factory, not a
-    context manager. That is intentional — a long-lived process that has its
+    context manager. That is intentional - a long-lived process that has its
     own graceful-stop protocol (``q`` → terminate → kill) does not benefit
     from automatic termination on scope exit, and forcing that model causes
     subtle bugs when the process is stored across scope boundaries.
@@ -462,7 +462,7 @@ def build_encoder_args(
 
     ``keyframe_seconds`` sets the GOP length. For the replay buffer it equals
     the segment length and ``force_keyframes`` is on, which pins a keyframe
-    to the start of every segment — that is what lets the segments be
+    to the start of every segment - that is what lets the segments be
     stitched back together without a judder at each five-second boundary.
 
     ``-bf 0`` disables B-frames everywhere. B-frames reference future frames,
@@ -618,7 +618,7 @@ def build_capture_io(
     else:
         first_audio_index = 0
 
-    # Audio inputs are added in a fixed order — microphone, then desktop — so
+    # Audio inputs are added in a fixed order - microphone, then desktop - so
     # the indices the filter graph and the maps reference stay predictable.
     audio_argv, audio_indices = _build_audio_inputs(plan.audio, first_audio_index)
     argv += audio_argv

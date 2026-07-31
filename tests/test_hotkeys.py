@@ -3,7 +3,7 @@
 These drive :class:`HotkeyListener` by calling the ``on_press``/``on_release``
 callbacks pynput would deliver, rather than by starting the listener. That
 exercises the real registration, modifier-tracking and dispatch logic without
-installing a system-wide keyboard hook on whichever machine runs the suite —
+installing a system-wide keyboard hook on whichever machine runs the suite -
 which matters, because a test that grabbed F5 globally would fight the
 developer's own keyboard.
 

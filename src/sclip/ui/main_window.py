@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
             return self._build_fallback_sidebar()
 
         # Each nav row carries a recoloured SVG glyph. A missing icon module
-        # is non-fatal — the sidebar simply shows text-only rows.
+        # is non-fatal - the sidebar simply shows text-only rows.
         try:
             from sclip.ui.assets.icons import icon
             from sclip.ui.theme import THEME
@@ -492,7 +492,7 @@ class MainWindow(QMainWindow):
 
         self._refresh_hotkeys(previous, settings)
         self._refresh_tray_labels(settings)
-        # Refresh the capture page *before* asking the engine to reload — when
+        # Refresh the capture page *before* asking the engine to reload - when
         # the engine reload fires its state listener, the page must already
         # hold the new ``Settings`` so the rendered status text reflects them
         # rather than the previous values.
@@ -538,8 +538,8 @@ class MainWindow(QMainWindow):
         immediately after a save, rather than showing stale values until the
         next engine-state transition.
 
-        The call is guarded with :func:`getattr` — matching the same defensive
-        optional-method pattern used for :meth:`_reload_engine_if_supported` —
+        The call is guarded with :func:`getattr` - matching the same defensive
+        optional-method pattern used for :meth:`_reload_engine_if_supported` -
         so a placeholder widget or a future page that drops the method does not
         cause a crash here.
         """

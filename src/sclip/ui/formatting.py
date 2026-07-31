@@ -35,7 +35,7 @@ def format_bitrate(bits_per_second: float) -> str:
     ``0.0 b/s``.
     """
     if bits_per_second <= 0:
-        return "—"
+        return " - "
     value = float(bits_per_second)
     for unit in ("b/s", "kb/s", "Mb/s"):
         if value < 1000.0:

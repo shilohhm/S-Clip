@@ -2,7 +2,7 @@
 
 ``main`` itself is not exercised here: it builds a :class:`QApplication` and
 enters the event loop, which a test run cannot sit through. What *is* covered
-is everything around it — argument handling, the single-instance guard, and
+is everything around it - argument handling, the single-instance guard, and
 the fallback collaborators that let the window open and explain itself when a
 subsystem cannot be built.
 """

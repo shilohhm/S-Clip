@@ -71,7 +71,7 @@ class Theme:
 
     # -- Surfaces, low to high ------------------------------------------
     bg: str = "#0B0D0E"  # window background, deepest plane
-    bg_alt: str = "#101315"  # sidebar — a hair lifted off the window
+    bg_alt: str = "#101315"  # sidebar - a hair lifted off the window
     surface: str = "#161A1D"  # cards and instrument stage
     surface_elevated: str = "#1D2226"  # hovered cards, popups, raised segments
     inset: str = "#080A0B"  # recessed wells: inputs, thumbnails

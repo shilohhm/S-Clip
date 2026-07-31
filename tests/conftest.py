@@ -78,13 +78,13 @@ def monkeypatch_app_paths(
     )
 
     # ``app_paths`` is decorated with ``functools.cache`` so we cannot simply
-    # monkeypatch the underlying function — we have to also clear the cache,
+    # monkeypatch the underlying function - we have to also clear the cache,
     # otherwise an earlier call wins. Replacing the cached attribute is the
     # cleanest way to keep the cache machinery happy.
     paths_module.app_paths.cache_clear()
     monkeypatch.setattr(paths_module, "app_paths", lambda: fake_paths)
 
-    with contextlib.suppress(OSError):  # pragma: no cover — defensive only
+    with contextlib.suppress(OSError):  # pragma: no cover - defensive only
         fake_paths.ensure_writable()
 
     yield tmp_path
@@ -154,7 +154,7 @@ _FAKE_FFMPEG_SCRIPT: str = textwrap.dedent(
     def _emit_list_devices() -> int:
         sys.stderr.write(_DSHOW_BLOB)
         sys.stderr.flush()
-        # Real FFmpeg exits non-zero when it cannot open ``dummy`` — the
+        # Real FFmpeg exits non-zero when it cannot open ``dummy`` - the
         # parser is built to tolerate that, so we mirror the behaviour.
         return 1
 
@@ -193,7 +193,7 @@ _FAKE_FFMPEG_SCRIPT: str = textwrap.dedent(
         Lives on its own thread so the main loop can keep producing segments
         without blocking on a read that may never return. Any unexpected
         stdin failure (EOF on an immediately-closed pipe, encoding error,
-        broken handle) is logged but does NOT terminate the producer — real
+        broken handle) is logged but does NOT terminate the producer - real
         FFmpeg keeps running too, and we want the buffer test to see a
         long-lived process.
         """
@@ -288,7 +288,7 @@ _FAKE_FFMPEG_SCRIPT: str = textwrap.dedent(
 def fake_ffmpeg_binary(tmp_path: Path) -> Path:
     """Write the fake FFmpeg Python script and return its path.
 
-    The script is *not* directly runnable — modules under test need a small
+    The script is *not* directly runnable - modules under test need a small
     extra hook so subprocess invocations route through the current Python
     interpreter. The :func:`install_fake_ffmpeg` fixture takes care of that
     plumbing; tests that only need the path can take this fixture directly.
@@ -315,7 +315,7 @@ def install_fake_ffmpeg(
 
     :func:`start_ffmpeg` itself does not need patching here: it looks
     ``_argv_with_binary`` up in its own module's globals on every call, so
-    patching the name on :mod:`sclip.core.ffmpeg` is enough — every consumer
+    patching the name on :mod:`sclip.core.ffmpeg` is enough - every consumer
     (including :mod:`sclip.core.replay_buffer`, which imports the symbol by
     name) sees the fake. Now that :func:`start_ffmpeg` is a plain function
     rather than a context manager, the previous ``held_contexts`` /

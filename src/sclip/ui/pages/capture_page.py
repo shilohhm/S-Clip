@@ -1,7 +1,7 @@
-"""Capture page — the front door of the app.
+"""Capture page - the front door of the app.
 
 The whole screen is built around one control: the record orb. Whatever the
-engine is doing, the orb shows it and the orb acts on it — start a recording,
+engine is doing, the orb shows it and the orb acts on it - start a recording,
 arm the replay buffer, save a clip. A status pill, a summary of what will be
 captured, and a strip of recent clips sit around it.
 
@@ -12,7 +12,7 @@ current :class:`Settings` to fill the summary card, and emits
 Threading note: the capture engine publishes its updates to listeners
 registered through ``add_state_listener``, ``add_clip_listener`` and
 ``add_error_listener``, and those listeners may fire on a worker thread. We
-never touch a widget from inside them — each listener emits a :class:`Signal`
+never touch a widget from inside them - each listener emits a :class:`Signal`
 defined here, and Qt marshals the slot back onto the GUI thread.
 """
 
@@ -144,7 +144,7 @@ def _quality_summary(settings: Settings) -> str:
 def _existing_thumbnail(clip: Path) -> QPixmap | None:
     """Pick up a cached thumbnail beside a clip, if the library produced one.
 
-    Thumbnails are never generated here — that is the library's job. We only
+    Thumbnails are never generated here - that is the library's job. We only
     look for the ``<clip>.thumb.jpg`` cache the library leaves behind.
     """
     candidates = (
@@ -173,7 +173,7 @@ def _stat_row(layout: QVBoxLayout, label_text: str, parent: QWidget) -> QLabel:
     row.addWidget(caption)
     row.addStretch(1)
 
-    value = QLabel("—", parent)
+    value = QLabel(" - ", parent)
     value.setObjectName("StatValue")
     row.addWidget(value)
 
@@ -196,7 +196,7 @@ def _chip(label_text: str, parent: QWidget) -> tuple[QFrame, QLabel]:
     caption.setObjectName("ChipLabel")
     layout.addWidget(caption)
 
-    value = QLabel("—", frame)
+    value = QLabel(" - ", frame)
     value.setObjectName("ChipValue")
     layout.addWidget(value)
     return frame, value
@@ -258,7 +258,7 @@ class CapturePage(QWidget):
     request_navigate = Signal(str)
     clip_saved = Signal(object)
 
-    # Internal bridge signals — the engine callbacks emit these so the slots
+    # Internal bridge signals - the engine callbacks emit these so the slots
     # always run on the GUI thread (see the module docstring).
     _engine_state_changed = Signal(object)
     _engine_clip_saved = Signal(object)
@@ -304,7 +304,7 @@ class CapturePage(QWidget):
         self._wire_bridge_signals()
         self._wire_engine_callbacks()
 
-        # File IO never belongs in a constructor — defer the clips scan and the
+        # File IO never belongs in a constructor - defer the clips scan and the
         # first paint so the window can show immediately.
         QTimer.singleShot(0, self._refresh_recent_clips)
         QTimer.singleShot(0, lambda: self._render_state(self._engine.state))
@@ -314,7 +314,7 @@ class CapturePage(QWidget):
     def _build_ui(self) -> None:
         """Assemble the page: a scroll area wrapping the hero and two cards.
 
-        The scroll area is load-bearing — without it, content taller than the
+        The scroll area is load-bearing - without it, content taller than the
         window crushes instead of scrolling.
         """
         root = QVBoxLayout(self)
@@ -561,8 +561,8 @@ class CapturePage(QWidget):
         """Recompose the capture stage for narrow windows.
 
         Stacking on its own is not enough. With the instrument on top, a
-        248px orb plus the mode selector and its labels pushed the readout —
-        which carries the save action and its hotkey — clean below the fold at
+        248px orb plus the mode selector and its labels pushed the readout -
+        which carries the save action and its hotkey - clean below the fold at
         the documented 960x640 minimum, so the primary control of the whole
         application was invisible at the smallest supported size.
 
@@ -672,7 +672,7 @@ class CapturePage(QWidget):
         self._render_state(self._engine.state)
 
     def _on_orb_clicked(self) -> None:
-        """Handle a click on the orb — the action depends on the engine state.
+        """Handle a click on the orb - the action depends on the engine state.
 
         The orb is always "the obvious next thing": stop a recording, save a
         clip while the buffer rolls, or otherwise start whichever capture the
@@ -685,7 +685,7 @@ class CapturePage(QWidget):
             elif state is CaptureState.BUFFERING:
                 self._engine.save_replay_clip()
             elif state is CaptureState.SAVING:
-                return  # a save is already in flight — the orb is inert
+                return  # a save is already in flight - the orb is inert
             elif self._mode is CaptureMode.REPLAY_BUFFER:
                 self._engine.start_replay_buffer()
             else:
@@ -694,7 +694,7 @@ class CapturePage(QWidget):
             logger.exception("Capture action failed")
 
     def _on_secondary_clicked(self) -> None:
-        """Stop the replay buffer — the orb's quieter companion action."""
+        """Stop the replay buffer - the orb's quieter companion action."""
         try:
             self._engine.stop_replay_buffer()
         except Exception:
@@ -714,11 +714,11 @@ class CapturePage(QWidget):
     def _read_telemetry(self) -> BufferTelemetry | None:
         """Ask the engine for a buffer snapshot, tolerating engines without one.
 
-        This touches the disk — a directory listing plus a ``stat`` per segment
-        — on the GUI thread. At one hertz over the sixteen segments a default
-        thirty-second window holds, that is comfortably sub-millisecond. Were
-        the poll ever made faster, or the window very long, this is the call
-        that would need moving to a worker.
+               This touches the disk - a directory listing plus a ``stat`` per segment
+        - on the GUI thread. At one hertz over the sixteen segments a default
+               thirty-second window holds, that is comfortably sub-millisecond. Were
+               the poll ever made faster, or the window very long, this is the call
+               that would need moving to a worker.
         """
         try:
             return self._engine.telemetry()
@@ -746,7 +746,7 @@ class CapturePage(QWidget):
         self._segments_value.setText(f"{telemetry.segment_count} / {telemetry.segment_capacity}")
 
     def _render_state(self, state: CaptureState) -> None:
-        """Turn an engine state into pixels — orb, pill, copy and buttons.
+        """Turn an engine state into pixels - orb, pill, copy and buttons.
 
         This is the single place state becomes visible, so it is safe to call
         after a mode switch, on first paint, on a timer tick, or from the
@@ -857,7 +857,7 @@ class CapturePage(QWidget):
                 self._last_error or "The capture engine stopped. Retry when ready.",
             )
 
-        # IDLE — the copy depends on the selected mode.
+        # IDLE - the copy depends on the selected mode.
         if self._mode is CaptureMode.REPLAY_BUFFER:
             return (
                 "Replay is disarmed",
@@ -869,8 +869,8 @@ class CapturePage(QWidget):
         """Describe the replay window without overstating what is in it.
 
         The buffer starts empty and fills over ``window_seconds``. Quoting the
-        configured target the instant it arms — which is what this screen used
-        to do — tells the user they have thirty seconds banked when a save
+        configured target the instant it arms - which is what this screen used
+        to do - tells the user they have thirty seconds banked when a save
         would actually produce two. The wording tracks the real fill instead,
         so the number on screen matches the clip they would get.
 
@@ -888,7 +888,7 @@ class CapturePage(QWidget):
         if telemetry.buffered_seconds <= 0:
             return (
                 "Buffer warming up",
-                "Arming — there is nothing to save yet.",
+                "Arming - there is nothing to save yet.",
             )
 
         if telemetry.is_full:
@@ -900,7 +900,7 @@ class CapturePage(QWidget):
         remaining = max(1, round(telemetry.window_seconds - telemetry.buffered_seconds))
         return (
             f"{int(telemetry.buffered_seconds)} of {telemetry.window_seconds} seconds buffered",
-            f"Filling — the full window is ready in {remaining}s.",
+            f"Filling - the full window is ready in {remaining}s.",
         )
 
     def _shortcut_copy(self, state: CaptureState) -> tuple[str, str]:
@@ -945,7 +945,7 @@ class CapturePage(QWidget):
         return "CLICK TO RECORD"
 
     def _on_clip_saved(self, path: object) -> None:
-        """Engine dropped a clip on disk — re-emit upwards and refresh Card 3."""
+        """Engine dropped a clip on disk - re-emit upwards and refresh Card 3."""
         clip_path = path if isinstance(path, Path) else Path(str(path))
         logger.info("Clip saved: %s", clip_path)
         self.clip_saved.emit(clip_path)

@@ -6,8 +6,8 @@ settings into an FFmpeg command line, owns the manual-recording process, and
 delegates rolling replay capture to :class:`RollingBuffer`.
 
 Capture is attempted with the GPU ``ddagrab`` backend first. If Desktop
-Duplication will not start — an RDP session, say, or an unusual display
-driver — the engine quietly retries with the legacy ``gdigrab`` backend so
+Duplication will not start - an RDP session, say, or an unusual display
+driver - the engine quietly retries with the legacy ``gdigrab`` backend so
 the user still gets a recording, just a less smooth one.
 
 Desktop audio is captured through :class:`DesktopAudioPump`, which streams the
@@ -216,7 +216,7 @@ class FFmpegCaptureEngine:
         pump) keep running throughout, so the user misses nothing while the
         clip is written.
 
-        Calling this while a save is already in flight is a no-op — the engine
+        Calling this while a save is already in flight is a no-op - the engine
         is in the ``SAVING`` state and a second worker would race the first
         for the same segments. The completed clip is announced through the
         registered clip listeners; a failed stitch through the error listeners.
@@ -244,14 +244,14 @@ class FFmpegCaptureEngine:
         Runs the blocking stitch, then restores the engine state under the
         lock. ``BUFFERING`` is restored only when the buffer is still rolling
         *and* the buffer's own error path has not already moved the engine to
-        ``ERROR`` — clobbering ``ERROR`` back to ``BUFFERING`` here would lose
+        ``ERROR`` - clobbering ``ERROR`` back to ``BUFFERING`` here would lose
         the failure the buffer just reported, and a second generic
         ``_handle_error`` from this method would then double-fire every error
         listener with a less specific message. The clip/error notification
         happens *outside* the lock so a listener cannot deadlock against an
         engine call it makes in response.
 
-        Any exception from the stitch — or from the state restoration — is
+        Any exception from the stitch - or from the state restoration - is
         caught here and routed through ``_handle_error`` so a worker crash
         cannot become a silent failure with nothing visible to the user.
         Daemon threads do not propagate exceptions back to the parent, so
@@ -263,7 +263,7 @@ class FFmpegCaptureEngine:
                 saved = self._buffer.save_clip(destination)
             finally:
                 with self._lock:
-                    # Leave ERROR alone — the buffer's own error handler has
+                    # Leave ERROR alone - the buffer's own error handler has
                     # already moved us there and fired the error listeners
                     # with a specific message.
                     if self.state is CaptureState.ERROR:
@@ -281,7 +281,7 @@ class FFmpegCaptureEngine:
             self._emit_clip_saved(saved)
         elif self.state is not CaptureState.ERROR:
             # ``save_clip`` returned ``None`` without the buffer reporting an
-            # error — most likely the buffer had no segments to stitch yet.
+            # error - most likely the buffer had no segments to stitch yet.
             # Surface it the same way as any other failure, but without
             # duplicating an error the buffer already announced.
             self._handle_error("Could not save the replay clip.")
@@ -336,7 +336,7 @@ class FFmpegCaptureEngine:
         Called during shutdown. A save normally completes in seconds; the
         timeout bounds the wait so a stuck stitch cannot wedge application
         exit. If the worker is still alive after the timeout we log and move
-        on — it is a daemon thread, so it dies with the process.
+        on - it is a daemon thread, so it dies with the process.
         """
         with self._lock:
             thread = self._save_thread
@@ -363,7 +363,7 @@ class FFmpegCaptureEngine:
         return self._pump.start()
 
     def _stop_desktop_pump(self) -> None:
-        """Stop the desktop-audio pump — safe to call when it is already idle."""
+        """Stop the desktop-audio pump - safe to call when it is already idle."""
         try:
             self._pump.stop()
         except Exception:
@@ -482,7 +482,7 @@ class FFmpegCaptureEngine:
         position of the matching monitor in :meth:`DeviceRegistry.monitors`,
         which today is backed by :mod:`screeninfo`.
 
-        Caveat — the index is *assumed* to match the DXGI output order that
+        Caveat - the index is *assumed* to match the DXGI output order that
         ``ddagrab`` consumes. On a single-GPU machine, and on most ordinary
         multi-monitor setups, the two orderings agree; but ``screeninfo`` does
         not promise DXGI order, so on an unusual configuration (a fresh hot-
@@ -491,7 +491,7 @@ class FFmpegCaptureEngine:
         first-class DXGI enumeration, which is out of scope here.
 
         When no monitor matches by name, the first enumerated monitor wins
-        with ``output_idx=0`` — the primary display in practice. When the
+        with ``output_idx=0`` - the primary display in practice. When the
         registry is empty we fabricate a 1920x1080 primary so a capture is
         still attempted rather than failing the user with an empty list.
         """
@@ -502,7 +502,7 @@ class FFmpegCaptureEngine:
         if monitors:
             return monitors[0], 0
 
-        # Nothing enumerated — fabricate a primary display so a capture can
+        # Nothing enumerated - fabricate a primary display so a capture can
         # still be attempted rather than failing outright.
         fallback = Monitor(
             name=settings.monitor or "Display 1",
@@ -522,7 +522,7 @@ class FFmpegCaptureEngine:
         """Build the audio configuration for one capture.
 
         The microphone is whatever the settings name (empty means none). The
-        desktop side is present only when the pump actually started — the
+        desktop side is present only when the pump actually started - the
         ``desktop`` stream carries the pipe FFmpeg should read.
         """
         if not settings.capture_audio:
@@ -575,7 +575,7 @@ class FFmpegCaptureEngine:
         try:
             exit_code = process.wait(timeout=0.5)
         except subprocess.TimeoutExpired:
-            return  # still running — healthy
+            return  # still running - healthy
         tail = read_stderr_tail(process)
         raise RuntimeError(
             f"{label} FFmpeg exited immediately (code {exit_code}). "
@@ -588,7 +588,7 @@ class FFmpegCaptureEngine:
         """Record the new state and notify every state listener.
 
         Each listener is invoked inside its own ``try/except`` so a listener
-        that raises — including one called from a worker thread — cannot stop
+        that raises - including one called from a worker thread - cannot stop
         the others from running or escape into the caller.
         """
         self.state = state

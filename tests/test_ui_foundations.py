@@ -109,7 +109,7 @@ def test_clip_tile_thumbnail_and_caption_share_their_edges(
     """A tile's thumbnail must be exactly as wide as the text beneath it.
 
     The widths used to be hand-written constants that drifted from the tile's
-    real content box — 232px of thumbnail under 242px of caption — so no edge
+    real content box - 232px of thumbnail under 242px of caption - so no edge
     in the library grid lined up with any other. They are derived now, and this
     pins the result: change the tile's padding or its QSS border without
     updating the derivation and this fails.

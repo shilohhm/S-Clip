@@ -1,4 +1,4 @@
-"""Settings page — the configuration form.
+"""Settings page - the configuration form.
 
 Edits a working copy of :class:`Settings`, validates every field as the user
 touches it, and only commits to the :class:`SettingsStore` when Save is hit.
@@ -10,14 +10,14 @@ control) and the Save button is disabled while any field is invalid.
 
 The page has two modes, chosen with a segmented control at the top:
 
-* **Automatic** — S-Clip tunes the capture settings for the user's hardware.
+* **Automatic** - S-Clip tunes the capture settings for the user's hardware.
   A read-only "Recommended setup" card summarises the detected configuration;
   the editable Video and Audio cards are hidden because the user is not meant
   to be hand-tuning capture here.
-* **Advanced** — the full editable form. The Video and Audio cards are shown;
+* **Advanced** - the full editable form. The Video and Audio cards are shown;
   the Recommended setup card is hidden.
 
-In either mode the Replay buffer, Hotkeys and Storage cards stay visible —
+In either mode the Replay buffer, Hotkeys and Storage cards stay visible -
 those are user preferences rather than hardware-derived capture settings, so
 it is sensible to edit them whichever mode is active. The chosen mode is
 stored on :class:`Settings` as ``auto_configure`` and persisted on Save.
@@ -69,7 +69,7 @@ from sclip.ui.widgets import Card, HotkeyEdit, IconButton, SegmentedControl
 logger = logging.getLogger(__name__)
 
 
-# Width / height as ``WIDTHxHEIGHT`` — tolerant of stray spaces and the
+# Width / height as ``WIDTHxHEIGHT`` - tolerant of stray spaces and the
 # typographic multiplication sign so a paste from anywhere still validates.
 _RESOLUTION_PATTERN = re.compile(r"^\s*(\d{2,5})\s*[xX\xd7]\s*(\d{2,5})\s*$")
 
@@ -154,7 +154,7 @@ class SettingsPage(QWidget):
     def _build_ui(self) -> None:
         """Assemble the page: a scrolling card stack above a pinned footer.
 
-        The root layout has zero margins — the scroll area paints edge to edge
+        The root layout has zero margins - the scroll area paints edge to edge
         and the footer hugs the bottom of the window. All visible padding lives
         either inside the scroll content or inside the footer row.
         """
@@ -174,7 +174,7 @@ class SettingsPage(QWidget):
         # -- Scrolling card stack ------------------------------------------
         # Without setWidgetResizable(True) the content widget keeps its sizeHint
         # and the cards spill past the viewport instead of wrapping into a
-        # scrollable column — that was the original layout bug.
+        # scrollable column - that was the original layout bug.
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -247,7 +247,7 @@ class SettingsPage(QWidget):
     def _make_error_label(self) -> QLabel:
         """Create a hidden inline error label.
 
-        Styling is left entirely to the ``#FieldError`` QSS rule — keeping the
+        Styling is left entirely to the ``#FieldError`` QSS rule - keeping the
         colour out of Python means a theme swap recolours these for free.
         """
         label = QLabel("", self)
@@ -332,7 +332,7 @@ class SettingsPage(QWidget):
             grid.addWidget(value_label, row, 1, 1, 2)
             self._recommended_values[key] = value_label
 
-        # Re-detect action: a low-emphasis ghost button is right here — the
+        # Re-detect action: a low-emphasis ghost button is right here - the
         # primary action on the page is still Save in the footer.
         redetect_button = IconButton(text="Re-detect hardware", role="ghost", parent=card)
         redetect_button.clicked.connect(self._on_redetect_hardware)
@@ -352,14 +352,14 @@ class SettingsPage(QWidget):
 
         Column 0 holds fixed-width labels, column 1 holds the input at its own
         comfortable width, and column 2 is an empty gutter that soaks up the
-        slack. Adding rows to *this* grid — rather than stacking loose
-        ``QHBoxLayout``s into the card's spacing-0 body — is what gives the
+        slack. Adding rows to *this* grid - rather than stacking loose
+        ``QHBoxLayout``s into the card's spacing-0 body - is what gives the
         form readable, evenly spaced rows.
 
         The gutter is load-bearing. Fields are width-capped, so if the stretch
         sat on the input column instead, every column would have a maximum, the
         grid's own maximum would fall below the card width, and Qt would centre
-        the whole form in the middle of the card — labels and all — rather than
+        the whole form in the middle of the card - labels and all - rather than
         leaving it anchored to the left edge.
         """
         grid = QGridLayout()
@@ -401,7 +401,7 @@ class SettingsPage(QWidget):
         """Pin an editable control to a consistent height and a readable width.
 
         A text field stretched across the full width of a card is harder to
-        scan, not easier — the value sits marooned at the left of a long empty
+        scan, not easier - the value sits marooned at the left of a long empty
         trough. Capping the field and letting the grid's gutter take the slack
         keeps the form a readable column.
         """
@@ -414,7 +414,7 @@ class SettingsPage(QWidget):
         """Size a short numeric control: full height, but a modest width.
 
         Every field sits in the grid's stretching second column, so without a
-        cap a spin box showing "30 s" sprawls the full width of the card —
+        cap a spin box showing "30 s" sprawls the full width of the card -
         several hundred pixels of chrome around two characters. Paths, device
         names and resolutions still want the whole column; only the short
         numeric fields are reined in.
@@ -427,7 +427,7 @@ class SettingsPage(QWidget):
         card = Card("Video", parent=parent)
         grid = self._make_card_grid(card)
 
-        # Resolution — validated live against the WIDTHxHEIGHT pattern.
+        # Resolution - validated live against the WIDTHxHEIGHT pattern.
         self._resolution_edit = QLineEdit(card)
         self._resolution_edit.setPlaceholderText("1920x1080")
         self._size_input(self._resolution_edit)
@@ -452,7 +452,7 @@ class SettingsPage(QWidget):
         self._encoder_combo.currentIndexChanged.connect(self._on_encoder_changed)
         self._add_field_row(grid, 3, "Encoder", self._encoder_combo)
 
-        # Preset — repopulated whenever the encoder changes.
+        # Preset - repopulated whenever the encoder changes.
         self._preset_combo = QComboBox(card)
         self._size_input(self._preset_combo)
         self._preset_combo.currentIndexChanged.connect(self._on_preset_changed)
@@ -491,7 +491,7 @@ class SettingsPage(QWidget):
         self._add_field_row(grid, 1, "Microphone", self._mic_combo)
 
         # Desktop audio is captured through the Windows WASAPI loopback API,
-        # not a DirectShow device, so it is a plain on/off switch — there is
+        # not a DirectShow device, so it is a plain on/off switch - there is
         # no device for the user to pick.
         self._capture_desktop_check = QCheckBox("Capture desktop audio (system sound)", card)
         self._capture_desktop_check.toggled.connect(self._on_capture_desktop_toggled)
@@ -500,7 +500,7 @@ class SettingsPage(QWidget):
             grid,
             3,
             self._make_hint_label(
-                "Captures whatever your speakers are playing — game, voice chat, music."
+                "Captures whatever your speakers are playing - game, voice chat, music."
             ),
         )
 
@@ -587,7 +587,7 @@ class SettingsPage(QWidget):
             self._monitor_combo.addItem(label, monitor.name)
         if not monitors:
             # Keep the form usable when the registry is empty (headless test
-            # mode etc.) — the persisted value still shows up below.
+            # mode etc.) - the persisted value still shows up below.
             self._monitor_combo.addItem("Monitor 1", "Monitor 1")
         self._monitor_combo.blockSignals(False)
 
@@ -661,7 +661,7 @@ class SettingsPage(QWidget):
         self._replay_seconds_spin.blockSignals(False)
         self._replay_seconds_spin.setEnabled(settings.replay_buffer)
 
-        # Hotkeys — set_hotkey does not re-emit, so no signal blocking needed.
+        # Hotkeys - set_hotkey does not re-emit, so no signal blocking needed.
         self._clip_hotkey_widget.set_hotkey(settings.clip_hotkey)
         self._record_hotkey_widget.set_hotkey(settings.record_hotkey)
 
@@ -812,7 +812,7 @@ class SettingsPage(QWidget):
         Automatic mode shows the read-only Recommended setup card and hides
         the editable Video and Audio cards. Advanced mode does the reverse.
         The Replay buffer, Hotkeys and Storage cards are deliberately left
-        untouched — they are user preferences, fine to edit in either mode.
+        untouched - they are user preferences, fine to edit in either mode.
         """
         is_automatic = index == _MODE_AUTOMATIC
         self._recommended_card.setVisible(is_automatic)
@@ -836,7 +836,7 @@ class SettingsPage(QWidget):
         """Re-probe the hardware and adopt a fresh recommended configuration.
 
         ``recommend_settings`` touches real hardware (FFmpeg probes, device
-        enumeration), so any failure is logged and swallowed — a failed probe
+        enumeration), so any failure is logged and swallowed - a failed probe
         should never tear the settings page down.
         """
         try:
@@ -870,7 +870,7 @@ class SettingsPage(QWidget):
         self.settings_saved.emit(self._persisted)
 
     def _on_cancel(self) -> None:
-        # Reload from the persisted store — this is more honest than copying
+        # Reload from the persisted store - this is more honest than copying
         # _persisted because the user may have edited via another window.
         try:
             self._persisted = self._settings_store.load()
@@ -913,7 +913,7 @@ class SettingsPage(QWidget):
         if width % 2 or height % 2:
             self._show_error(
                 self._errors.resolution,
-                "Most encoders need even dimensions — try a multiple of two.",
+                "Most encoders need even dimensions - try a multiple of two.",
             )
             return False
         # Normalise the working copy so the saved value is consistent ("x" not "X").
@@ -924,7 +924,7 @@ class SettingsPage(QWidget):
     def _validate_output_dir(self) -> bool:
         value = self._output_dir_edit.text().strip()
         if not value:
-            # Blank means "use default" — always valid.
+            # Blank means "use default" - always valid.
             self._clear_error(self._errors.output_dir)
             return True
         path = Path(value)
@@ -956,7 +956,7 @@ class SettingsPage(QWidget):
                 "Enter a key, optionally with Ctrl/Shift/Alt.",
             )
             return False
-        # Soft warning when the two hotkeys collide — same chord can't drive both.
+        # Soft warning when the two hotkeys collide - same chord can't drive both.
         if self._working.clip_hotkey == hotkey:
             self._show_error(
                 self._errors.record_hotkey,

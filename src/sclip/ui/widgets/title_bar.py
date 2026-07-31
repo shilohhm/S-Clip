@@ -1,12 +1,12 @@
 """Custom window title bar for the frameless main window.
 
-Going frameless lets S-Clip carry its own chrome — the brand mark, and window
+Going frameless lets S-Clip carry its own chrome - the brand mark, and window
 controls that match the rest of the interface rather than the grey system
 buttons. The bar handles the two interactions a title bar owes the user:
 dragging it moves the window, and double-clicking it toggles maximised state.
 
 The three control glyphs (minimise, maximise/restore, close) are painted by
-hand rather than shipped as image assets — they are three or four straight
+hand rather than shipped as image assets - they are three or four straight
 lines each, and painting them keeps them crisp at any scale and recolourable
 on hover without a second set of files.
 """
@@ -47,7 +47,7 @@ class _WindowButton(QPushButton):
         self.setFixedSize(46, TITLE_BAR_HEIGHT)
 
     def set_kind(self, kind: str) -> None:
-        """Swap the glyph — used to flip maximise to restore and back."""
+        """Swap the glyph - used to flip maximise to restore and back."""
         if kind != self._kind:
             self._kind = kind
             self.update()
@@ -86,7 +86,7 @@ class _WindowButton(QPushButton):
         elif self._kind == "maximise":
             painter.drawRect(box)
         elif self._kind == "restore":
-            # Two offset squares — the classic "restore down" mark.
+            # Two offset squares - the classic "restore down" mark.
             offset = 2
             back = QRect(
                 box.left() + offset, box.top(), box.width() - offset, box.height() - offset

@@ -54,8 +54,8 @@ def test_format_bytes_shows_whole_bytes_without_a_decimal() -> None:
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        (0.0, "—"),
-        (-5.0, "—"),
+        (0.0, " - "),
+        (-5.0, " - "),
         (500.0, "500 b/s"),
         (1_500.0, "1.5 kb/s"),
         (8_388_608.0, "8.4 Mb/s"),

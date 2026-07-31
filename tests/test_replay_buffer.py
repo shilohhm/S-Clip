@@ -4,7 +4,7 @@ These tests drive :class:`RollingBuffer` against the fake FFmpeg binary from
 :mod:`tests.conftest`, so they exercise the real process plumbing without
 actually capturing a desktop. They are marked ``slow`` because each test
 spawns a subprocess and waits long enough for the fake to emit a couple of
-``.ts`` segments — easily under a second each, but slower than the pure
+``.ts`` segments - easily under a second each, but slower than the pure
 in-memory tests in the rest of the suite.
 """
 
@@ -22,14 +22,14 @@ from sclip.core.replay_buffer import BufferSpec, RollingBuffer
 
 # How long we let the fake FFmpeg buffer run before we look for segments.
 # The fake writes its segments synchronously on startup, so this is mostly a
-# guard against scheduler jitter — half a second is plenty.
+# guard against scheduler jitter - half a second is plenty.
 _WARMUP_SECONDS: float = 0.6
 
 
 def _make_spec(directory: Path) -> BufferSpec:
     """Build a buffer spec with empty capture args.
 
-    The real capture args (gdigrab, dshow, encoder) are irrelevant here —
+    The real capture args (gdigrab, dshow, encoder) are irrelevant here -
     the fake binary ignores anything it does not recognise. Keeping the
     spec minimal makes the tests easier to read.
     """
@@ -145,7 +145,7 @@ def test_start_is_idempotent_with_same_spec(
         first_pid = buffer._process.pid if buffer._process else None
         assert first_pid is not None
 
-        # Second start with the same spec — should be a no-op.
+        # Second start with the same spec - should be a no-op.
         buffer.start(spec)
         second_pid = buffer._process.pid if buffer._process else None
 
@@ -238,8 +238,8 @@ def _write_segments(directory: Path, count: int, *, size: int = 1024) -> list[Pa
 
     ``expected_segment_paths`` orders segments by modification time so the
     wrap-around case sorts correctly. Files written back-to-back can land on
-    the same timestamp — especially on Windows, whose filesystem timestamp
-    granularity is coarse — so the mtimes are set explicitly. Without this the
+    the same timestamp - especially on Windows, whose filesystem timestamp
+    granularity is coarse - so the mtimes are set explicitly. Without this the
     "newest segment" the snapshot discards would be arbitrary and the test
     would flake.
     """
@@ -257,8 +257,8 @@ def _stat_vanishing_after_listing(doomed: Path) -> Callable[..., os.stat_result]
 
     The error carries ``ENOENT`` deliberately. :meth:`pathlib.Path.is_file`
     inspects ``errno`` to decide whether to swallow an error or re-raise it, so
-    a ``FileNotFoundError`` built from a bare message — which leaves ``errno``
-    as ``None`` — escapes ``is_file`` instead of being treated as "absent".
+    a ``FileNotFoundError`` built from a bare message - which leaves ``errno``
+    as ``None`` - escapes ``is_file`` instead of being treated as "absent".
     How much that matters varies by Python version: 3.10 calls ``stat()`` with
     no arguments from ``is_file``, 3.13 passes ``follow_symlinks``. Raising a
     faithful ENOENT makes the fake behave like a genuinely deleted file on
@@ -349,7 +349,7 @@ def test_telemetry_excludes_the_segment_still_being_written(buffer_dir: Path) ->
 
     ``save_clip`` discards the newest segment because the muxer is still
     writing it. Telemetry reads through the same snapshot, so five files on
-    disk means four saveable segments — eight seconds at the default two-second
+    disk means four saveable segments - eight seconds at the default two-second
     segment length.
     """
     _write_segments(buffer_dir, 5)

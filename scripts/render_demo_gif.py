@@ -405,8 +405,8 @@ def _assemble_gif(ffmpeg: Path, *, frame_dir: Path, work_dir: Path, output: Path
     """Turn the grabbed frames into a looping GIF.
 
     Two passes, because a GIF carries only 256 colours. Letting the encoder
-    pick them per frame makes a mess of this interface — the flat dark
-    surfaces band badly — so a palette is generated from the whole sequence
+    pick them per frame makes a mess of this interface - the flat dark
+    surfaces band badly - so a palette is generated from the whole sequence
     first and then applied.
     """
     palette = work_dir / "palette.png"

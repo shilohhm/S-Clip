@@ -21,14 +21,14 @@ from sclip.core.settings import JsonSettingsStore
 
 
 def test_load_missing_file_returns_defaults(tmp_settings_file: Path) -> None:
-    # Arrange — no file on disk.
+    # Arrange - no file on disk.
     assert not tmp_settings_file.exists()
     store = JsonSettingsStore(tmp_settings_file)
 
     # Act
     loaded = store.load()
 
-    # Assert — every field matches the contract's default.
+    # Assert - every field matches the contract's default.
     assert loaded == Settings()
 
 
@@ -54,7 +54,7 @@ def test_load_non_object_returns_defaults(tmp_settings_file: Path) -> None:
 
 
 def test_save_then_load_round_trips_every_field(tmp_settings_file: Path) -> None:
-    # Arrange — populate every field with a non-default value so the round-trip
+    # Arrange - populate every field with a non-default value so the round-trip
     # has something to verify against.
     original = Settings(
         resolution="2560x1440",
@@ -209,10 +209,10 @@ def test_unknown_encoder_falls_back_to_libx264(
 @pytest.mark.parametrize(
     ("written_fps", "expected_fps"),
     [
-        (0, 1),  # below the floor — clamps up to 1
-        (-30, 1),  # negative — clamps up to 1
-        (480, 240),  # above the ceiling — clamps down to 240
-        ("sixty", Settings().fps),  # nonsense — falls back to the default
+        (0, 1),  # below the floor - clamps up to 1
+        (-30, 1),  # negative - clamps up to 1
+        (480, 240),  # above the ceiling - clamps down to 240
+        ("sixty", Settings().fps),  # nonsense - falls back to the default
     ],
 )
 def test_fps_outside_supported_range_is_clamped_or_rejected(
@@ -272,7 +272,7 @@ def test_save_normalises_invalid_settings_on_write(tmp_settings_file: Path) -> N
 @pytest.mark.parametrize(
     "hostile_audio_input",
     [
-        "-malicious_option",  # leading dash — could be parsed as an FFmpeg option
+        "-malicious_option",  # leading dash - could be parsed as an FFmpeg option
         "  -still_dash",  # whitespace-padded leading dash
         "name\x00with\x00nul",  # ASCII control characters
         "name\x07with\x07bell",
@@ -304,7 +304,7 @@ def test_legitimate_audio_input_is_preserved(tmp_settings_file: Path) -> None:
 @pytest.mark.parametrize(
     "hostile_output_dir",
     [
-        r"\\attacker.example.com\share",  # Windows UNC path — NTLM-hash leak vector
+        r"\\attacker.example.com\share",  # Windows UNC path - NTLM-hash leak vector
         "//attacker.example.com/share",  # POSIX-style UNC path
         "relative/path",  # not absolute
         "clips",  # not absolute

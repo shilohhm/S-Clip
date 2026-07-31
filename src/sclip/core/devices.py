@@ -1,6 +1,6 @@
 """Enumerate the monitors and audio devices exposed by the host OS.
 
-Listing devices is surprisingly slow on Windows — every call to FFmpeg's dshow
+Listing devices is surprisingly slow on Windows - every call to FFmpeg's dshow
 probe spins up the binary, queries the COM subsystem and waits for it to time
 out trying to open ``dummy`` as an input. We cache the results until a caller
 explicitly invokes :meth:`SystemDeviceRegistry.refresh`.
@@ -37,7 +37,7 @@ _DEVICE_LINE_RE: Final = re.compile(
     r'^\[dshow @ [^\]]+\]\s+"(?P<name>[^"]+)"\s+\((?P<kind>[a-z]+)\)'
 )
 
-# The line two below each device entry is the alternative-name brand line —
+# The line two below each device entry is the alternative-name brand line -
 # it has no double-quoted device name, just the @device path. We detect it
 # loosely so we don't accidentally pick up the next device entry.
 _ALT_NAME_RE: Final = re.compile(r'^\[dshow @ [^\]]+\]\s+Alternative name\s+"(?P<alt>[^"]+)"')
@@ -54,10 +54,10 @@ try:
         except Exception:
             return None
 
-except ImportError:  # pragma: no cover — only triggered before the sibling lands
+except ImportError:  # pragma: no cover - only triggered before the sibling lands
 
     def _resolve_ffmpeg() -> str | None:
-        """Fallback FFmpeg resolver — system PATH only, no bundled lookup."""
+        """Fallback FFmpeg resolver - system PATH only, no bundled lookup."""
         return shutil.which("ffmpeg")
 
 
@@ -112,7 +112,7 @@ def _enumerate_monitors() -> list[Monitor]:
 
     monitors: list[Monitor] = []
     for index, m in enumerate(raw_monitors, start=1):
-        # ``is_primary`` is missing on some platforms — default to False if so.
+        # ``is_primary`` is missing on some platforms - default to False if so.
         is_primary = bool(getattr(m, "is_primary", False))
         monitors.append(
             Monitor(
@@ -149,7 +149,7 @@ def _enumerate_audio_devices() -> list[AudioDevice]:
     ]
 
     try:
-        result = subprocess.run(  # noqa: PLW1510 — we accept the non-zero exit
+        result = subprocess.run(  # noqa: PLW1510 - we accept the non-zero exit
             cmd,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -178,7 +178,7 @@ def _parse_dshow_devices(stderr: str) -> list[AudioDevice]:
     We look for the section header (``DirectShow audio devices``) so that
     "(audio)" entries appearing after an ``output``/``render``/``playback``
     hint can be tagged as output devices. When we cannot decide cleanly we
-    fall back to "input" rather than guess — the upstream contract is happy
+    fall back to "input" rather than guess - the upstream contract is happy
     with that and the device name is preserved verbatim.
     """
     devices: list[AudioDevice] = []
@@ -218,7 +218,7 @@ def _parse_dshow_devices(stderr: str) -> list[AudioDevice]:
         devices.append(AudioDevice(name=name, kind=kind))
 
     if not devices:
-        # Stderr was empty or didn't match — log enough to debug without
+        # Stderr was empty or didn't match - log enough to debug without
         # spamming the log with the full FFmpeg banner.
         logger.info("No audio devices recognised in FFmpeg output")
     return devices

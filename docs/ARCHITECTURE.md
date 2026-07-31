@@ -63,7 +63,7 @@ Three rules govern the dependency graph:
 | `sclip.core.settings`        | Read and write the user's settings file atomically; migrate legacy schemas     | UI concerns, FFmpeg invocation                              |
 | `sclip.core.devices`         | Enumerate monitors and audio devices; cache the results across calls           | Persistent storage of selections                            |
 | `sclip.core.ffmpeg`          | Locate the FFmpeg binary; spawn FFmpeg with the right plumbing                 | Application policy (which encoder, which preset)            |
-| `sclip.core.capture`         | Implement the `CaptureEngine` protocol — drives FFmpeg for manual recording    | Owning the replay buffer (delegated to `replay_buffer`)     |
+| `sclip.core.capture`         | Implement the `CaptureEngine` protocol - drives FFmpeg for manual recording    | Owning the replay buffer (delegated to `replay_buffer`)     |
 | `sclip.core.replay_buffer`   | Maintain a rolling FFmpeg segment muxer; concatenate segments into a clip      | Choosing when to clip (the GUI decides)                     |
 | `sclip.ui`                   | PySide6 main window, pages, widgets, theming                                   | Anything that does not involve drawing pixels or handling input |
 | `sclip.app`                  | Wire the concrete implementations together at start-up; install the tray icon  | The actual recording                                        |
@@ -110,7 +110,7 @@ Numbered steps:
 3. The engine acquires the rolling buffer's lock, snapshots the current list of
    `.ts` segments on disk and writes out a concat list file.
 4. The engine spawns a second, short-lived FFmpeg process to concatenate the
-   segments. The rolling muxer keeps running — the segments are read-only from
+   segments. The rolling muxer keeps running - the segments are read-only from
    the concat job's perspective, so the two FFmpeg processes do not interfere.
 5. The concat FFmpeg exits. The engine deletes the concat list file and verifies
    the output exists and is non-empty.
@@ -147,7 +147,7 @@ Synchronisation between threads:
   re-entrant variant lets handlers restart the buffer (stop then start) without
   deadlocking.
 - The engine surfaces non-fatal errors through an optional callback rather than
-  Qt signals — see "Design decisions" below for the rationale.
+  Qt signals - see "Design decisions" below for the rationale.
 - Settings are loaded once at startup and again whenever the settings page
   closes. There is no shared mutable settings state between threads; the GUI
   always works with a draft copy and writes back atomically.
@@ -163,7 +163,7 @@ Linux.
 
 **Why `ddagrab` for screen capture.** The original build used `gdigrab`, which
 scrapes the screen through GDI. That path cannot sustain high resolutions and
-frame rates — it delivers frames late and unevenly, and the judder is baked into
+frame rates - it delivers frames late and unevenly, and the judder is baked into
 every recording. `ddagrab` wraps the Windows Desktop Duplication API: capture
 happens on the GPU, frames arrive at the true refresh rate, and (with
 `dup_frames`) the output is genuinely constant-rate. `gdigrab` is kept only as
@@ -172,19 +172,19 @@ start, such as an RDP session.
 
 **Why FFmpeg's segment muxer for the replay buffer.** The segment muxer writes
 short MPEG-TS files in rotation and supports `-segment_wrap`, which means the
-disk footprint is bounded. The alternative — recording continuously to a single
-file and trimming on save — would require reading and rewriting a huge MP4 on
+disk footprint is bounded. The alternative - recording continuously to a single
+file and trimming on save - would require reading and rewriting a huge MP4 on
 every clip, which is both slow and fragile. MPEG-TS segments, by contrast, are
 self-describing and stitch together cleanly. A keyframe is forced at the start
 of every segment so each one decodes independently.
 
 **Why the save step re-encodes.** Stitching the segments with a plain stream
-copy is tempting — it would be near-instant — but it leaves a faint timing seam
+copy is tempting - it would be near-instant - but it leaves a faint timing seam
 at every segment join: each segment's audio track makes its container slightly
 longer than its video, and the concat demuxer carries that drift into the
 output. Re-encoding the stitched footage with a forced constant frame rate lays
 down one unbroken timeline, so the saved clip plays back perfectly smoothly. A
-clip save therefore costs a few seconds of encoding rather than being instant —
+clip save therefore costs a few seconds of encoding rather than being instant -
 a price well worth paying for footage that never judders.
 
 **Why callbacks rather than Qt signals in the core.** The core modules are

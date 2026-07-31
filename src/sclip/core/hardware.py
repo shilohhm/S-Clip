@@ -1,8 +1,8 @@
 """Hardware probing and recommended-settings derivation.
 
 S-Clip tries to be useful the moment it is opened, with no trip to a settings
-screen. On the first launch it inspects the machine — which hardware encoder
-actually works, what the primary display is, which audio devices exist — and
+screen. On the first launch it inspects the machine - which hardware encoder
+actually works, what the primary display is, which audio devices exist - and
 writes a tuned configuration. The user can still take the wheel through the
 Advanced settings, but they should never *have* to.
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # Encoders to try, best first. A hardware encoder keeps the capture off the
-# CPU, which is exactly what a gamer wants — the game keeps the headroom.
+# CPU, which is exactly what a gamer wants - the game keeps the headroom.
 # libx264 is the universal software fallback and always succeeds.
 _ENCODER_PRIORITY: tuple[str, ...] = ("h264_nvenc", "h264_amf", "h264_qsv", "libx264")
 
@@ -34,7 +34,7 @@ _ENCODER_PRIORITY: tuple[str, ...] = ("h264_nvenc", "h264_amf", "h264_qsv", "lib
 # via this module rather than directly via the contracts.
 
 # Recommended speed preset per encoder family. The hardware encoders are given
-# a balanced preset — they have the headroom — while the CPU encoder is kept
+# a balanced preset - they have the headroom - while the CPU encoder is kept
 # brisk so a recording never starves the game of processor time.
 _RECOMMENDED_PRESET: dict[str, str] = {
     "h264_nvenc": "p5",
@@ -101,7 +101,7 @@ def detect_best_encoder() -> str:
             logger.info("Recommended encoder: %s", codec)
             return codec
     # _ENCODER_PRIORITY ends in libx264, so reaching here means even the
-    # software encoder failed — most likely FFmpeg itself is missing.
+    # software encoder failed - most likely FFmpeg itself is missing.
     logger.warning("No encoder passed the probe; defaulting to libx264")
     return "libx264"
 
@@ -111,7 +111,7 @@ def _recommended_preset(encoder: str) -> str:
     preset = _RECOMMENDED_PRESET.get(encoder, "veryfast")
     spec = encoder_by_codec(encoder)
     if spec is not None and preset not in spec.presets:
-        # The preferred preset is not offered by this encoder — fall back to
+        # The preferred preset is not offered by this encoder - fall back to
         # the middle of whatever it does offer, which is a fair speed/quality
         # compromise.
         preset = spec.presets[len(spec.presets) // 2]
@@ -123,7 +123,7 @@ def recommend_settings(base: Settings, registry: DeviceRegistry) -> Settings:
 
     The capture-related fields (encoder, preset, quality, resolution, monitor,
     audio devices) are replaced with detected values. The user's own
-    preferences — hotkeys, replay-buffer length, clip folder — are carried
+    preferences - hotkeys, replay-buffer length, clip folder - are carried
     across from ``base`` untouched.
     """
     encoder = detect_best_encoder()
@@ -182,7 +182,7 @@ def _recommend_microphone(registry: DeviceRegistry) -> str:
 
     Comes back empty on a machine with no microphone, which the capture
     engine and the settings screen both cope with. Desktop audio is not
-    chosen here — it is captured by the WASAPI loopback pump, which needs no
+    chosen here - it is captured by the WASAPI loopback pump, which needs no
     device to be picked.
     """
     try:

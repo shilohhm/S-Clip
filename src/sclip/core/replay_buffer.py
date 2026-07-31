@@ -72,7 +72,7 @@ class BufferSpec:
 
     Keeping these together (rather than passing a fistful of positional
     arguments to ``start``) means the engine can build the spec once and pass
-    it through even if the user changes settings mid-session — the buffer
+    it through even if the user changes settings mid-session - the buffer
     keeps the original wiring until the next explicit restart.
 
     ``encoder``, ``preset`` and ``crf`` describe how the save-time stitch
@@ -97,7 +97,7 @@ class BufferSpec:
         slot holds the segment being written and the rest hold finished
         segments. Since the save step discards that in-progress segment, we
         need ``ceil(seconds / segment_seconds)`` finished slots plus the one
-        in-progress slot — hence the ``+ 1``.
+        in-progress slot - hence the ``+ 1``.
         """
         slots = math.ceil(self.seconds / self.segment_seconds) + 1
         return max(2, slots)
@@ -226,8 +226,8 @@ class RollingBuffer:
         """Report what a save would produce at this instant.
 
         Returns ``None`` when the buffer is not running. The segment list comes
-        from :meth:`_snapshot_segments_locked` — the very call
-        :meth:`save_clip` makes — so the figure shown to the user cannot drift
+        from :meth:`_snapshot_segments_locked` - the very call
+        :meth:`save_clip` makes - so the figure shown to the user cannot drift
         from the clip they would actually get, including the rule that discards
         the segment the muxer is still writing.
 
@@ -299,7 +299,7 @@ class RollingBuffer:
                     _CONCAT_RETRY_DELAY,
                 )
                 time.sleep(_CONCAT_RETRY_DELAY)
-                # Re-snapshot segments — the rolling muxer might have
+                # Re-snapshot segments - the rolling muxer might have
                 # rotated a slot we were about to read.
                 with self._lock:
                     segments = self._snapshot_segments_locked()
@@ -329,7 +329,7 @@ class RollingBuffer:
     def _remember_survivors_locked(self) -> None:
         """Note any segment the purge could not remove, with its mtime.
 
-        A file survives the purge when something still holds it open — the
+        A file survives the purge when something still holds it open - the
         classic case being an FFmpeg orphaned by a previous crash. Recording it
         here is what lets the snapshot tell somebody else's footage from ours.
         """
@@ -358,8 +358,8 @@ class RollingBuffer:
         """Return the finished segments on disk, oldest first.
 
         The newest segment is the one the muxer is still actively writing to.
-        Copying a half-written segment leaves a corrupt frame at the join — a
-        visible glitch — so it is dropped here. The cost is losing up to
+        Copying a half-written segment leaves a corrupt frame at the join - a
+        visible glitch - so it is dropped here. The cost is losing up to
         ``SEGMENT_SECONDS`` of the most recent footage, which is exactly why
         the segments are kept short.
 
@@ -406,7 +406,7 @@ class RollingBuffer:
         """Check for instant FFmpeg failure and raise a sensible error.
 
         Run inside the lock immediately after spawn. We give the muxer a very
-        short grace window — long enough for it to die on misuse but not long
+        short grace window - long enough for it to die on misuse but not long
         enough that the user notices the startup latency.
 
         The error is raised, not pushed through ``_on_error``: the caller owns

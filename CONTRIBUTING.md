@@ -63,15 +63,15 @@ python scripts/render_demo_gif.py
 ```
 
 Do not hand-edit either output, and do not feed the renderers data the
-application could not itself produce — the point of both scripts is that the
+application could not itself produce - the point of both scripts is that the
 README shows the app as it really is. In particular, do not swap the scripted
 engine for a live capture: that would put whatever was on your screen into a
 public repository.
 
 ## Packaging
 
-The Windows installer is built in two steps — PyInstaller freezes the app, Inno
-Setup wraps it — both driven by one script:
+The Windows installer is built in two steps - PyInstaller freezes the app, Inno
+Setup wraps it - both driven by one script:
 
 ```powershell
 winget install JRSoftware.InnoSetup

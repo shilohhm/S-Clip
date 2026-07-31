@@ -57,7 +57,7 @@ htmlcov/
 coverage.xml
 *.cover
 
-# Agent tooling — not part of the project. (A future *project* CLAUDE.md
+# Agent tooling - not part of the project. (A future *project* CLAUDE.md
 # would need the /CLAUDE.md line removed.)
 .claude/
 .claude-flow/
@@ -67,5 +67,5 @@ coverage.xml
 # pytest temp-dir tree
 pytest-of-*/
 
-# Internal planning specs — kept local
+# Internal planning specs - kept local
 docs/superpowers/

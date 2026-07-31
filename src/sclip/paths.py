@@ -35,7 +35,7 @@ class AppPaths:
     def ensure_writable(self) -> None:
         """Create any directories the user will write into.
 
-        We never auto-create read-only paths (package_root, assets_dir) — those
+        We never auto-create read-only paths (package_root, assets_dir) - those
         ship with the app and missing entries indicate a packaging fault.
         """
         for path in (

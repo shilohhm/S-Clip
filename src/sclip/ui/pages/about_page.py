@@ -1,4 +1,4 @@
-"""About page — identity, a plain-English explainer, credits and diagnostics.
+"""About page - identity, a plain-English explainer, credits and diagnostics.
 
 This screen is deliberately calm: it is where a puzzled user lands when an
 install misbehaves, so it must always render cleanly even when the
@@ -6,7 +6,7 @@ environment is broken. Every call that touches the filesystem or shells out
 to FFmpeg is guarded, and the FFmpeg probe runs off the GUI thread so the
 page paints instantly and fills its values in a moment later.
 
-Pure presentation — the page owns no engine state and persists nothing.
+Pure presentation - the page owns no engine state and persists nothing.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ _REPLAY_EXPLAINER = (
     "S-Clip quietly keeps the last few minutes of your screen in a rolling "
     "buffer on disk, overwriting the oldest footage as it goes. When "
     "something worth keeping happens, press the clip hotkey and S-Clip "
-    "stitches that buffer into a smooth MP4. Nothing is ever uploaded — your "
+    "stitches that buffer into a smooth MP4. Nothing is ever uploaded - your "
     "clips stay on your machine, and yours alone."
 )
 
@@ -98,7 +98,7 @@ class _FFmpegProbeSignals(QObject):
     small companion object is the standard Qt way to bridge the two.
     """
 
-    # Emits (path, version) — either field is an empty string when unknown.
+    # Emits (path, version) - either field is an empty string when unknown.
     finished = Signal(str, str)
 
 
@@ -107,7 +107,7 @@ class _FFmpegProbeWorker(QRunnable):
 
     Both steps can block: ``find_ffmpeg`` walks the filesystem, and probing
     the version spawns the binary. Doing this work here keeps page
-    construction instant — the GUI thread never waits on a subprocess.
+    construction instant - the GUI thread never waits on a subprocess.
     """
 
     def run(self) -> None:  # pragma: no cover - exercised at runtime only
@@ -260,7 +260,7 @@ class AboutPage(QWidget):
         return card
 
     def _build_app_mark(self, parent: QWidget) -> QWidget:
-        """Render the clip icon onto a rounded inset square — the app badge."""
+        """Render the clip icon onto a rounded inset square - the app badge."""
         mark = QFrame(parent)
         mark.setObjectName("Inset")
         mark.setFixedSize(_APP_MARK_SIZE, _APP_MARK_SIZE)
@@ -384,7 +384,7 @@ class AboutPage(QWidget):
         value_label = QLabel(value, parent)
         value_label.setProperty("role", "mono")
         value_label.setWordWrap(True)
-        # The value is the useful part of a bug report — let users select it.
+        # The value is the useful part of a bug report - let users select it.
         value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         row.addWidget(value_label, 1)
 

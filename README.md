@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/assets/sclip-hero.svg" alt="S-Clip — competition-grade rolling replay capture for Windows" width="100%">
+  <img src="./docs/assets/sclip-hero.svg" alt="S-Clip - competition-grade rolling replay capture for Windows" width="100%">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@ match.
   clip hotkey.
 - **The readout never overstates the buffer.** A rolling buffer starts empty
   and takes your whole window to fill. S-Clip reports what a save would
-  actually produce at that instant — *18 of 30 seconds buffered* — because the
+  actually produce at that instant - *18 of 30 seconds buffered* - because the
   figure is read from the same segment snapshot the save path uses. The number
   on screen cannot drift from the clip you get.
 - **Capture stays on the GPU.** S-Clip prefers Desktop Duplication through
@@ -72,7 +72,7 @@ match.
 > never touch a developer's own clips folder. The sample recordings are genuinely
 > encoded by FFmpeg and thumbnailed through the same code path the library uses;
 > their content is a generated gradient rather than real gameplay footage. In the
-> animation the interface is real and the capture engine is scripted — driving a
+> animation the interface is real and the capture engine is scripted - driving a
 > live capture would mean committing whatever happened to be on the author's
 > screen.
 
@@ -93,7 +93,7 @@ S-Clip is deliberately small at the surface and serious underneath:
 The final replay stitch intentionally re-encodes, and it is not free. Measured
 on an NVENC machine, stitching 28 seconds of 2560x1440 60fps footage takes
 about 11 seconds; a stream copy of the same segments takes 1.3. It is tempting
-until you look at what comes out of it — variable frame rate, and eleven frames
+until you look at what comes out of it - variable frame rate, and eleven frames
 short, because each segment's audio track makes its container a hair longer
 than its video and those differences accumulate at every join.
 

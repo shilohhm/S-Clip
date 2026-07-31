@@ -6,7 +6,7 @@
 #
 # A one-directory build rather than one-file, on purpose. A one-file build
 # unpacks itself to a temporary directory on every launch, which costs a second
-# or two of startup and — more importantly here — moves the application's own
+# or two of startup and - more importantly here - moves the application's own
 # location somewhere unpredictable. S-Clip resolves its bundled assets and looks
 # for a neighbouring FFmpeg relative to where it lives, so a stable install
 # directory is worth more than a single tidy file. The installer hides the
