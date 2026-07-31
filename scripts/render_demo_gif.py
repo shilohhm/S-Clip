@@ -305,6 +305,7 @@ def _backdate(clip: Path) -> None:
 def _capture_frames(
     app: QApplication,
     window: MainWindow,
+    *,
     engine: ScriptedEngine,
     frame_dir: Path,
     staged_clip: Path | None,
@@ -485,7 +486,14 @@ def render(output: Path) -> Path:
             app.processEvents()
 
         print("Grabbing frames...")
-        count = _capture_frames(app, window, engine, frame_dir, staged, clips_dir)
+        count = _capture_frames(
+            app,
+            window,
+            engine=engine,
+            frame_dir=frame_dir,
+            staged_clip=staged,
+            clips_dir=clips_dir,
+        )
         print(f"  {count} frames")
 
         print("Assembling GIF...")

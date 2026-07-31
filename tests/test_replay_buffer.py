@@ -10,6 +10,7 @@ in-memory tests in the rest of the suite.
 
 from __future__ import annotations
 
+import errno
 import os
 import time
 from collections.abc import Callable
@@ -254,18 +255,20 @@ def _write_segments(directory: Path, count: int, *, size: int = 1024) -> list[Pa
 def _stat_vanishing_after_listing(doomed: Path) -> Callable[..., os.stat_result]:
     """A ``Path.stat`` replacement that models one segment rotating away.
 
-    The scanning code stats a path twice for different reasons: ``is_file()``
-    passes ``follow_symlinks`` as a keyword, while the explicit size and mtime
-    reads call ``stat()`` bare. Failing only the bare form reproduces exactly
-    the race we are defending against — the file was there when the directory
-    was listed and gone a moment later — rather than pretending it never
-    existed at all.
+    The error carries ``ENOENT`` deliberately. :meth:`pathlib.Path.is_file`
+    inspects ``errno`` to decide whether to swallow an error or re-raise it, so
+    a ``FileNotFoundError`` built from a bare message — which leaves ``errno``
+    as ``None`` — escapes ``is_file`` instead of being treated as "absent".
+    How much that matters varies by Python version: 3.10 calls ``stat()`` with
+    no arguments from ``is_file``, 3.13 passes ``follow_symlinks``. Raising a
+    faithful ENOENT makes the fake behave like a genuinely deleted file on
+    every version rather than only the one it was written on.
     """
     real_stat = Path.stat
 
     def flaky_stat(self: Path, *args: object, **kwargs: object) -> os.stat_result:
-        if self == doomed and not args and not kwargs:
-            raise FileNotFoundError(str(self))
+        if self == doomed:
+            raise FileNotFoundError(errno.ENOENT, "No such file or directory", str(self))
         return real_stat(self, *args, **kwargs)  # type: ignore[arg-type]
 
     return flaky_stat
