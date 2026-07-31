@@ -46,6 +46,10 @@ dev = [
     "ruff>=0.16,<0.17",
     "mypy>=1.10",
     "build>=1.2",
+    # Freezes the application for the Windows installer. Windows-only because
+    # that is the only platform S-Clip targets, and it keeps the dev install
+    # from dragging a packaging tool onto machines that cannot use it.
+    "pyinstaller>=6.10 ; sys_platform == 'win32'",
 ]
 
 [project.scripts]
