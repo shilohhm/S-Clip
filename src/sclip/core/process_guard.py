@@ -30,6 +30,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,46 @@ _PROCESS_SET_QUOTA = 0x0100
 _PROCESS_TERMINATE = 0x0001
 
 
-def _build_job() -> int | None:  # pragma: no cover - Windows-only, exercised at runtime
+def _kernel32() -> Any:  # pragma: no cover - Windows-only
+    """Return kernel32 with the signatures we use declared.
+
+    Declaring these is not optional housekeeping. ctypes defaults an
+    undeclared return value to C ``int``, which is 32 bits, so a 64-bit HANDLE
+    comes back truncated. A truncated job handle still looks truthy, so the
+    guard appears to work while the real handle goes unreferenced and closes --
+    and because the job carries KILL_ON_JOB_CLOSE, closing it kills the very
+    process we just enrolled. The observed symptom was a capture that armed
+    successfully and then produced no segments at all.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.CreateJobObjectW.argtypes = [wintypes.LPVOID, wintypes.LPCWSTR]
+
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    ]
+
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    return kernel32
+
+
+def _build_job() -> object | None:  # pragma: no cover - Windows-only, exercised at runtime
     """Create the kill-on-close job object, or ``None`` if unavailable."""
     import ctypes
     from ctypes import wintypes
@@ -68,7 +108,7 @@ def _build_job() -> int | None:  # pragma: no cover - Windows-only, exercised at
             ("MinimumWorkingSetSize", ctypes.c_size_t),
             ("MaximumWorkingSetSize", ctypes.c_size_t),
             ("ActiveProcessLimit", wintypes.DWORD),
-            ("Affinity", ctypes.POINTER(ctypes.c_ulong)),
+            ("Affinity", ctypes.c_size_t),  # ULONG_PTR: pointer-sized
             ("PriorityClass", wintypes.DWORD),
             ("SchedulingClass", wintypes.DWORD),
         ]
@@ -83,7 +123,7 @@ def _build_job() -> int | None:  # pragma: no cover - Windows-only, exercised at
             ("PeakJobMemoryUsed", ctypes.c_size_t),
         ]
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = _kernel32()
     job = kernel32.CreateJobObjectW(None, None)
     if not job:
         logger.warning(
@@ -108,17 +148,20 @@ def _build_job() -> int | None:  # pragma: no cover - Windows-only, exercised at
         return None
 
     logger.debug("Child-process job object created")
-    return int(job)
+    # Returned as the HANDLE object, not an int: the guard holds this for the
+    # life of the process, and the job must stay open for the guarantee to
+    # hold -- closing it would terminate every child it protects.
+    return cast(object, job)
 
 
 class _ProcessGuard:
     """Holds the job object and enrols children in it."""
 
     def __init__(self) -> None:
-        self._job: int | None = None
+        self._job: object | None = None
         self._resolved = False
 
-    def _job_handle(self) -> int | None:
+    def _job_handle(self) -> object | None:
         # Built on first use rather than at import, so importing this module
         # stays free on platforms and test runs that never spawn anything.
         if not self._resolved:
@@ -141,7 +184,7 @@ class _ProcessGuard:
 
         import ctypes
 
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32 = _kernel32()
         handle = kernel32.OpenProcess(_PROCESS_SET_QUOTA | _PROCESS_TERMINATE, False, process.pid)
         if not handle:
             logger.warning(

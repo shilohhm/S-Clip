@@ -22,6 +22,7 @@ import ctypes
 import logging
 import os
 import threading
+import time
 from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Any
@@ -287,6 +288,58 @@ class DesktopAudioPump:
         finally:
             audio.terminate()
 
+    def _pump_until_stopped(
+        self,
+        stream: Any,
+        pipe: _OutboundPipe,
+        sample_rate: int,
+        channels: int,
+    ) -> None:
+        """Forward loopback PCM to the pipe at real time until asked to stop.
+
+        A WASAPI loopback endpoint delivers nothing at all while the system is
+        silent — it does not hand back buffers of zeroes. Blocking on ``read``
+        therefore stalls this thread whenever nothing is playing, the pipe stops
+        advancing, and FFmpeg starves on an input that never moves. The capture
+        then produces no segments whatsoever, so a muted game or a menu screen
+        was enough to make S-Clip record nothing at all, silently.
+
+        The loop therefore paces itself and substitutes silence when the device
+        has none, which keeps the pipe advancing whether or not a sound plays.
+        """
+        silence = bytes(_READ_FRAMES * channels * 2)  # zeroed 16-bit samples
+        period = _READ_FRAMES / float(sample_rate)
+        deadline = time.monotonic()
+
+        while not self._stop_event.is_set():
+            try:
+                available = int(stream.get_read_available())
+            except Exception:  # not every backend implements it
+                available = _READ_FRAMES
+
+            if available >= _READ_FRAMES:
+                # exception_on_overflow is off: an overrun drops a few samples,
+                # far better than tearing the capture down.
+                chunk = stream.read(_READ_FRAMES, exception_on_overflow=False)
+            else:
+                chunk = silence
+
+            if not pipe.write(chunk):
+                # FFmpeg closed the pipe — normal at the end of a recording.
+                if not self._stop_event.is_set():
+                    logger.debug("Desktop-audio reader closed the pipe")
+                return
+
+            # Pace to real time; without this the silence path would spin and
+            # flood the pipe far faster than the capture consumes it.
+            deadline += period
+            slack = deadline - time.monotonic()
+            if slack > 0:
+                self._stop_event.wait(slack)
+            else:
+                # Fell behind: resync rather than catching up in a burst.
+                deadline = time.monotonic()
+
     def _run(self, device_index: int, sample_rate: int, channels: int) -> None:
         """Worker thread: read loopback PCM and forward it to the pipe."""
         try:
@@ -320,17 +373,8 @@ class DesktopAudioPump:
                 input=True,
                 input_device_index=device_index,
             )
-            while not self._stop_event.is_set():
-                # exception_on_overflow is off: an overrun means we drop a few
-                # samples, which is far better than tearing the capture down.
-                chunk = stream.read(_READ_FRAMES, exception_on_overflow=False)
-                if not pipe.write(chunk):
-                    # FFmpeg closed the pipe — it has stopped capturing. That
-                    # is normal at the end of a recording; only worth a note
-                    # if we were not asked to stop.
-                    if not self._stop_event.is_set():
-                        logger.debug("Desktop-audio reader closed the pipe")
-                    break
+            self._pump_until_stopped(stream, pipe, sample_rate, channels)
+
         except Exception:
             logger.exception("Desktop audio capture loop failed")
         finally:
