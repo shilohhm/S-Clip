@@ -10,6 +10,7 @@ import pytest
 
 from sclip.contracts import (
     ENCODERS,
+    BufferTelemetry,
     CaptureMode,
     CaptureState,
     EncoderSpec,
@@ -125,3 +126,63 @@ def test_capture_mode_is_string_enum() -> None:
     """``CaptureMode`` mirrors :class:`CaptureState` — also a string enum."""
     assert CaptureMode("replay_buffer") is CaptureMode.REPLAY_BUFFER
     assert CaptureMode("manual") is CaptureMode.MANUAL
+
+
+# -------------------------------------------------------------------- BufferTelemetry
+
+
+def _telemetry(
+    *,
+    buffered: float,
+    window: int = 30,
+    segments: int = 0,
+    capacity: int = 16,
+    size: int = 0,
+) -> BufferTelemetry:
+    """Build a telemetry snapshot without spelling out every field each time."""
+    return BufferTelemetry(
+        buffered_seconds=buffered,
+        window_seconds=window,
+        segment_count=segments,
+        segment_capacity=capacity,
+        bytes_on_disk=size,
+    )
+
+
+def test_fill_fraction_reports_partial_progress() -> None:
+    assert _telemetry(buffered=15.0, window=30).fill_fraction == pytest.approx(0.5)
+
+
+def test_fill_fraction_clamps_when_window_is_not_a_segment_multiple() -> None:
+    """A 31s window at 2s segments tops out at 32s of real footage.
+
+    ``segment_wrap`` is ``ceil(seconds / segment_seconds) + 1``, so the buffer
+    can legitimately hold slightly more than the configured window. The raw
+    ``buffered_seconds`` keeps that truth, but the fraction must not exceed 1.0
+    or the meter would overrun its track.
+    """
+    telemetry = _telemetry(buffered=32.0, window=31)
+    assert telemetry.buffered_seconds == 32.0  # the true value survives
+    assert telemetry.fill_fraction == 1.0  # the displayed ratio is clamped
+
+
+def test_fill_fraction_is_zero_for_a_nonpositive_window() -> None:
+    """Guard the division rather than raising on a nonsensical window."""
+    assert _telemetry(buffered=5.0, window=0).fill_fraction == 0.0
+
+
+def test_bitrate_converts_bytes_over_buffered_seconds_to_bits() -> None:
+    # 1 MB spread over 8 seconds -> 1 Mbit/s.
+    telemetry = _telemetry(buffered=8.0, size=1_000_000)
+    assert telemetry.bitrate_bps == pytest.approx(1_000_000.0)
+
+
+def test_bitrate_is_zero_before_any_segment_completes() -> None:
+    """An empty buffer must not divide by zero."""
+    assert _telemetry(buffered=0.0, size=0).bitrate_bps == 0.0
+
+
+def test_is_full_only_once_the_window_is_reached() -> None:
+    assert _telemetry(buffered=29.0, window=30).is_full is False
+    assert _telemetry(buffered=30.0, window=30).is_full is True
+    assert _telemetry(buffered=32.0, window=30).is_full is True

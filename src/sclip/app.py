@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     from sclip.contracts import (
         AudioDevice,
+        BufferTelemetry,
         CaptureEngine,
         CaptureState,
         DeviceRegistry,
@@ -412,6 +413,10 @@ class _DisabledCaptureEngine:
 
     def save_replay_clip(self) -> None:
         logger.error("Capture engine unavailable; cannot save replay clip")
+
+    def telemetry(self) -> BufferTelemetry | None:
+        # No engine means no rolling window to describe.
+        return None
 
     def shutdown(self) -> None:
         pass

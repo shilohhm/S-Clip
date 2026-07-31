@@ -10,7 +10,9 @@ in-memory tests in the rest of the suite.
 
 from __future__ import annotations
 
+import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -208,3 +210,182 @@ def test_build_segment_args_appends_muxer_flags() -> None:
     assert "-segment_wrap" in argv
     assert str(spec.segment_wrap) in argv
     assert argv[-1] == str(spec.pattern)
+
+
+# -------------------------------------------------------------------- telemetry
+# These drive the real segment-scanning code against real files on disk, but
+# stand in a fake process for the FFmpeg muxer so they stay fast enough to run
+# in the default (non-slow) suite.
+
+
+class _FakeProcess:
+    """Minimal stand-in for a live FFmpeg process.
+
+    :meth:`RollingBuffer.is_running` only asks for ``poll()``; returning
+    ``None`` means "still running", which is all telemetry needs.
+    """
+
+    def __init__(self, *, alive: bool = True) -> None:
+        self.returncode: int | None = None if alive else 0
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+
+def _write_segments(directory: Path, count: int, *, size: int = 1024) -> list[Path]:
+    """Write ``count`` fake ``.ts`` segments with strictly increasing mtimes.
+
+    ``expected_segment_paths`` orders segments by modification time so the
+    wrap-around case sorts correctly. Files written back-to-back can land on
+    the same timestamp — especially on Windows, whose filesystem timestamp
+    granularity is coarse — so the mtimes are set explicitly. Without this the
+    "newest segment" the snapshot discards would be arbitrary and the test
+    would flake.
+    """
+    written: list[Path] = []
+    for index in range(count):
+        segment = directory / f"seg_{index:03d}.ts"
+        segment.write_bytes(b"\0" * size)
+        os.utime(segment, (1_000_000 + index, 1_000_000 + index))
+        written.append(segment)
+    return written
+
+
+def _stat_vanishing_after_listing(doomed: Path) -> Callable[..., os.stat_result]:
+    """A ``Path.stat`` replacement that models one segment rotating away.
+
+    The scanning code stats a path twice for different reasons: ``is_file()``
+    passes ``follow_symlinks`` as a keyword, while the explicit size and mtime
+    reads call ``stat()`` bare. Failing only the bare form reproduces exactly
+    the race we are defending against — the file was there when the directory
+    was listed and gone a moment later — rather than pretending it never
+    existed at all.
+    """
+    real_stat = Path.stat
+
+    def flaky_stat(self: Path, *args: object, **kwargs: object) -> os.stat_result:
+        if self == doomed and not args and not kwargs:
+            raise FileNotFoundError(str(self))
+        return real_stat(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    return flaky_stat
+
+
+def _running_buffer(
+    directory: Path, *, seconds: int = 30, segment_seconds: int = 2
+) -> RollingBuffer:
+    """A buffer that believes it is running, without spawning FFmpeg."""
+    buffer = RollingBuffer(directory)
+    buffer._process = _FakeProcess()  # type: ignore[assignment]
+    buffer._spec = BufferSpec(
+        capture_args=(),
+        directory=directory,
+        seconds=seconds,
+        segment_seconds=segment_seconds,
+    )
+    return buffer
+
+
+def test_telemetry_returns_none_when_the_buffer_is_not_running(buffer_dir: Path) -> None:
+    buffer = RollingBuffer(buffer_dir)
+    assert buffer.telemetry() is None
+
+
+def test_telemetry_excludes_the_segment_still_being_written(buffer_dir: Path) -> None:
+    """Telemetry must report what a save would produce, not what is on disk.
+
+    ``save_clip`` discards the newest segment because the muxer is still
+    writing it. Telemetry reads through the same snapshot, so five files on
+    disk means four saveable segments — eight seconds at the default two-second
+    segment length.
+    """
+    _write_segments(buffer_dir, 5)
+    buffer = _running_buffer(buffer_dir, segment_seconds=2)
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    assert telemetry.segment_count == 4
+    assert telemetry.buffered_seconds == 8.0
+
+
+def test_telemetry_keeps_a_lone_segment(buffer_dir: Path) -> None:
+    """A just-started buffer keeps its single segment, mirroring ``save_clip``."""
+    _write_segments(buffer_dir, 1)
+    buffer = _running_buffer(buffer_dir, segment_seconds=2)
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    assert telemetry.segment_count == 1
+    assert telemetry.buffered_seconds == 2.0
+
+
+def test_telemetry_sums_only_the_saveable_segments(buffer_dir: Path) -> None:
+    _write_segments(buffer_dir, 4, size=2048)
+    buffer = _running_buffer(buffer_dir)
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    # Three counted segments (the newest is dropped), 2048 bytes each.
+    assert telemetry.bytes_on_disk == 3 * 2048
+
+
+def test_telemetry_reports_the_configured_window_and_capacity(buffer_dir: Path) -> None:
+    _write_segments(buffer_dir, 3)
+    buffer = _running_buffer(buffer_dir, seconds=30, segment_seconds=2)
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    assert telemetry.window_seconds == 30
+    # ceil(30 / 2) + 1 == 16 rotation slots.
+    assert telemetry.segment_capacity == 16
+
+
+def test_telemetry_tolerates_a_segment_vanishing_mid_scan(
+    buffer_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rotating muxer can delete a segment between listing and sizing it.
+
+    Telemetry polls once a second, so it meets this race far more often than
+    the occasional save does. A vanished file must cost us its bytes, not the
+    whole snapshot.
+    """
+    segments = _write_segments(buffer_dir, 4, size=1000)
+    doomed = segments[0]
+    buffer = _running_buffer(buffer_dir)
+    monkeypatch.setattr(Path, "stat", _stat_vanishing_after_listing(doomed))
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    # Four segments on disk. The vanished one is dropped while listing, leaving
+    # three, and the newest of those is discarded as still-being-written. Two
+    # remain -- and crucially, nothing raised.
+    assert telemetry.segment_count == 2
+    assert telemetry.buffered_seconds == 4.0
+    assert telemetry.bytes_on_disk == 2 * 1000
+
+
+def test_expected_segment_paths_skips_a_file_that_disappears_while_sorting(
+    buffer_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The listing sorts by mtime, so it must survive a mid-sort deletion.
+
+    ``save_clip`` and telemetry both route through here; a raise would take
+    out a clip save, not just a readout.
+    """
+    from sclip.core.ffmpeg import expected_segment_paths
+
+    segments = _write_segments(buffer_dir, 3)
+    doomed = segments[1]
+    monkeypatch.setattr(Path, "stat", _stat_vanishing_after_listing(doomed))
+
+    listed = expected_segment_paths(buffer_dir)
+
+    # The surviving segments are still returned, in mtime order.
+    assert [p.name for p in listed] == ["seg_000.ts", "seg_002.ts"]

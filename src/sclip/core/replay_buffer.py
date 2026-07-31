@@ -32,6 +32,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sclip.contracts import BufferTelemetry
 from sclip.core.ffmpeg import (
     AUDIO_BITRATE,
     build_quality_args,
@@ -214,6 +215,42 @@ class RollingBuffer:
         with self._lock:
             self._stop_locked()
             self._purge_segments_locked()
+
+    def telemetry(self) -> BufferTelemetry | None:
+        """Report what a save would produce at this instant.
+
+        Returns ``None`` when the buffer is not running. The segment list comes
+        from :meth:`_snapshot_segments_locked` — the very call
+        :meth:`save_clip` makes — so the figure shown to the user cannot drift
+        from the clip they would actually get, including the rule that discards
+        the segment the muxer is still writing.
+
+        The file sizes are summed outside the lock: the snapshot is already
+        taken, and holding the lock across a burst of ``stat`` calls would put
+        disk latency in the path of every ``start``/``stop``/``save``.
+        """
+        with self._lock:
+            spec = self._spec
+            if not self.is_running or spec is None:
+                return None
+            segments = self._snapshot_segments_locked()
+
+        total_bytes = 0
+        for segment in segments:
+            try:
+                total_bytes += segment.stat().st_size
+            except OSError:
+                # Rotated away since the snapshot. It costs us its bytes,
+                # not the whole reading.
+                continue
+
+        return BufferTelemetry(
+            buffered_seconds=float(len(segments) * spec.segment_seconds),
+            window_seconds=spec.seconds,
+            segment_count=len(segments),
+            segment_capacity=spec.segment_wrap,
+            bytes_on_disk=total_bytes,
+        )
 
     def save_clip(self, destination: Path) -> Path | None:
         """Stitch the finished segments into a single, smooth MP4.

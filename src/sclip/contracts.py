@@ -210,6 +210,57 @@ class Settings:
         return dataclasses.replace(self)
 
 
+@dataclass(frozen=True, slots=True)
+class BufferTelemetry:
+    """A point-in-time snapshot of the rolling replay buffer.
+
+    The buffer starts empty and fills over ``window_seconds``, so for the first
+    stretch of every session there is less replay on hand than the user has
+    configured. This type is what lets the interface say so instead of quoting
+    the target back as though it were already available.
+
+    ``buffered_seconds`` is derived from the same segment snapshot the save
+    path uses — including the rule that discards the segment the muxer is still
+    writing — which is what keeps the readout and the saved clip in agreement.
+    """
+
+    buffered_seconds: float  # what a save would actually produce right now
+    window_seconds: int  # the configured target
+    segment_count: int  # finished segments backing the figure above
+    segment_capacity: int  # rotation slots the muxer cycles through
+    bytes_on_disk: int
+
+    @property
+    def fill_fraction(self) -> float:
+        """Progress towards a full window, clamped to ``0.0..1.0``.
+
+        The buffer can legitimately hold slightly more than the configured
+        window: ``segment_wrap`` rounds the slot count up, so a 31-second
+        window at two-second segments tops out at 32 seconds of real footage.
+        :attr:`buffered_seconds` keeps that truth; the ratio is clamped so a
+        progress meter never overruns its track.
+        """
+        if self.window_seconds <= 0:
+            return 0.0
+        return min(1.0, self.buffered_seconds / self.window_seconds)
+
+    @property
+    def bitrate_bps(self) -> float:
+        """Effective capture bitrate in bits per second.
+
+        Returns ``0.0`` before the first segment completes rather than dividing
+        by zero.
+        """
+        if self.buffered_seconds <= 0:
+            return 0.0
+        return self.bytes_on_disk * 8 / self.buffered_seconds
+
+    @property
+    def is_full(self) -> bool:
+        """True once the buffer holds at least the configured window."""
+        return self.buffered_seconds >= self.window_seconds
+
+
 @runtime_checkable
 class CaptureEngine(Protocol):
     """The capture engine, as far as the GUI is concerned.
@@ -237,6 +288,8 @@ class CaptureEngine(Protocol):
     def stop_replay_buffer(self) -> None: ...
 
     def save_replay_clip(self) -> None: ...
+
+    def telemetry(self) -> BufferTelemetry | None: ...
 
     def shutdown(self) -> None: ...
 
@@ -268,6 +321,7 @@ class DeviceRegistry(Protocol):
 __all__ = [
     "ENCODERS",
     "AudioDevice",
+    "BufferTelemetry",
     "CaptureEngine",
     "CaptureMode",
     "CaptureState",

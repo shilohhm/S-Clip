@@ -26,7 +26,14 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from sclip.contracts import CaptureState, DeviceRegistry, Monitor, Settings, SettingsStore
+from sclip.contracts import (
+    BufferTelemetry,
+    CaptureState,
+    DeviceRegistry,
+    Monitor,
+    Settings,
+    SettingsStore,
+)
 from sclip.core.desktop_audio import DesktopAudioPump, DesktopAudioStream
 from sclip.core.ffmpeg import (
     AudioConfig,
@@ -278,6 +285,19 @@ class FFmpegCaptureEngine:
             # Surface it the same way as any other failure, but without
             # duplicating an error the buffer already announced.
             self._handle_error("Could not save the replay clip.")
+
+    def telemetry(self) -> BufferTelemetry | None:
+        """Report the live replay window, or ``None`` when nothing is rolling.
+
+        Telemetry stays available through ``SAVING`` on purpose: the rolling
+        buffer is deliberately never interrupted by a stitch, so the user keeps
+        banking footage while the clip is written and the readout should go on
+        saying so. Manual recording has no rolling window, so it reports
+        nothing.
+        """
+        if self.state not in (CaptureState.BUFFERING, CaptureState.SAVING):
+            return None
+        return self._buffer.telemetry()
 
     def reload_settings(self) -> None:
         """Restart the replay buffer if settings changed while it was running."""

@@ -350,12 +350,27 @@ def expected_segment_paths(directory: Path) -> list[Path]:
     Sorting by modification time (rather than filename) handles the
     wrap-around case: once the segment muxer loops, ``seg_000.ts`` is the
     newest file even though its name sorts first.
+
+    The mtime is read while the list is built rather than from inside the sort
+    key, so a segment the muxer rotates away mid-scan is dropped instead of
+    raising. Both the save path and the once-a-second telemetry poll come
+    through here, and the poll meets that race often enough that an unguarded
+    ``stat`` would eventually take down a clip save.
     """
     if not directory.exists():
         return []
-    segments = [p for p in directory.iterdir() if p.suffix == ".ts" and p.is_file()]
-    segments.sort(key=lambda p: p.stat().st_mtime)
-    return segments
+    dated: list[tuple[float, Path]] = []
+    for path in directory.iterdir():
+        if path.suffix != ".ts" or not path.is_file():
+            continue
+        try:
+            dated.append((path.stat().st_mtime, path))
+        except OSError:
+            # Rotated away between the listing and the stat. It is no longer
+            # part of the buffer, so leaving it out is the correct answer.
+            continue
+    dated.sort(key=lambda pair: pair[0])
+    return [path for _mtime, path in dated]
 
 
 def remove_quietly(path: Path) -> None:
