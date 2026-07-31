@@ -85,13 +85,20 @@ jobs:
           Write-Output "--- application log ---"
           if (Test-Path $log) { Get-Content $log } else { throw "The application wrote no log." }
 
+      # Written with LF endings and no BOM on purpose. Out-File would give the
+      # line a CRLF terminator, and `sha256sum -c` then treats the carriage
+      # return as part of the file name and reports the download as unreadable
+      # — which looks exactly like a corrupted download to anyone checking it.
       - name: Checksum the installer
         shell: pwsh
         run: |
           $setup = Get-ChildItem build/installer/*.exe | Select-Object -First 1
           $hash = (Get-FileHash $setup.FullName -Algorithm SHA256).Hash.ToLower()
-          "$hash  $($setup.Name)" | Out-File -FilePath "build/installer/SHA256SUMS.txt" -Encoding ascii
-          Write-Output "$hash  $($setup.Name)"
+          $line = "$hash  $($setup.Name)`n"
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::WriteAllText(
+            (Join-Path $PWD "build/installer/SHA256SUMS.txt"), $line, $utf8NoBom)
+          Write-Output $line.Trim()
 
       - uses: actions/upload-artifact@v7
         with:
