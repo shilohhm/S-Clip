@@ -169,6 +169,7 @@ def _settings_from_dict(data: dict[str, Any]) -> Settings:
         record_hotkey=_coerce_hotkey(data.get("record_hotkey"), defaults.record_hotkey),
         output_dir=_coerce_output_dir(data.get("output_dir"), defaults.output_dir),
         auto_configure=_coerce_bool(data.get("auto_configure"), defaults.auto_configure),
+        check_for_updates=_coerce_bool(data.get("check_for_updates"), defaults.check_for_updates),
     )
 
 
@@ -190,6 +191,7 @@ def _settings_to_dict(settings: Settings) -> dict[str, Any]:
         "record_hotkey": _hotkey_to_dict(settings.record_hotkey),
         "output_dir": settings.output_dir,
         "auto_configure": settings.auto_configure,
+        "check_for_updates": settings.check_for_updates,
     }
 
 

@@ -45,6 +45,10 @@ match.
   *Test this setup* does the same for the settings you picked yourself and says
   plainly when they will not hold. Nothing is captured from your screen and no
   file is written.
+- **It tells you when it is out of date, and nothing else.** S-Clip asks GitHub
+  once a day whether a newer release exists and shows a link if one does. That
+  is its only use of the network, it can be switched off in Settings, and it
+  never downloads or installs anything - see [below](#why-there-is-no-auto-updater).
 - **The interface stays out of the match.** Global hotkeys, tray operation,
   direct state feedback, and a local clip library keep the common path short.
 
@@ -110,6 +114,19 @@ subtracting, because a single timed run charges FFmpeg's start-up to the
 encoder, and setting up an NVENC session costs enough to understate hardware
 encoding by about a quarter - biasing the benchmark against the very encoder it
 should be recommending.
+
+### Why there is no auto-updater
+
+S-Clip notices new releases but will not install them, and that is a decision
+rather than an unfinished feature. The installer is not code-signed, so an
+automatic update would have to download an unsigned executable and run it. That
+trains the user to click past the SmartScreen warning which is, today, the only
+thing standing between them and a tampered build - and it turns this project's
+release pipeline into a code-execution channel on every machine that has ever
+run it. Doing it properly needs a signed update manifest and a key to sign it
+with, at which point the download can be verified independently of any
+certificate authority. Until then, a link to the release page is the honest
+option, and the user installs it exactly as they installed the first one.
 
 Saving is a remux, not a re-encode, and that is worth a paragraph because the
 obvious reasoning points the other way. Feeding the segments through FFmpeg's

@@ -768,6 +768,24 @@ QLabel#FieldHint[role="warning"] {
     color: %(warning)s;
 }
 
+
+/* ====================================================================
+ *  UpdateBanner -- a one-line strip under the title bar saying a newer
+ *  release exists. Reads as information rather than as a problem, so it
+ *  takes the surface colour with an accent rule rather than a warning fill.
+ * ==================================================================== */
+
+QWidget#UpdateBanner {
+    background: %(surface_elevated)s;
+    border-bottom: 1px solid %(accent_primary)s;
+}
+
+QLabel#UpdateBannerText {
+    color: %(text_primary)s;
+    font-size: %(body_size)spx;
+    background: transparent;
+}
+
 QLabel#FieldError {
     color: %(danger)s;
     font-size: %(caption_size)spx;

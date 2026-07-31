@@ -413,6 +413,20 @@ class AboutPage(QWidget):
         row.addStretch(1)
         body.addLayout(row)
 
+        # Said here rather than buried in a privacy policy nobody opens. This
+        # is the whole of S-Clip's network behaviour, and a user is entitled
+        # to read it in the place they go to find out what the app is.
+        note = QLabel(
+            "S-Clip asks GitHub once a day whether a newer release exists, and shows a "
+            "link if one does. That is the only time it uses the network: nothing is "
+            "downloaded or installed, no account is involved, and nothing about you or "
+            "your PC is sent. Turn it off under Settings > Updates.",
+            card,
+        )
+        note.setObjectName("FieldHint")
+        note.setWordWrap(True)
+        body.addWidget(note)
+
         return card
 
     # ------------------------------------------------------ FFmpeg probe

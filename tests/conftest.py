@@ -72,6 +72,7 @@ def monkeypatch_app_paths(
         styles_qss=package_root / "ui" / "styles.qss",
         config_dir=config_dir,
         settings_file=config_dir / "settings.json",
+        update_state_file=config_dir / "update-check.json",
         clips_dir=data_dir / "clips",
         replay_buffer_dir=data_dir / "replay_buffer",
         log_file=data_dir / "logs" / "sclip.log",

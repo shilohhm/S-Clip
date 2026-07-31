@@ -154,7 +154,11 @@ def paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     """
     clips = tmp_path / "clips"
     clips.mkdir()
-    fake = SimpleNamespace(clips_dir=clips, assets_dir=_ASSETS)
+    fake = SimpleNamespace(
+        clips_dir=clips,
+        assets_dir=_ASSETS,
+        update_state_file=clips.parent / "update-check.json",
+    )
     for module in (main_window_module, capture_page, library_page, settings_page):
         monkeypatch.setattr(module, "app_paths", lambda: fake)
     return fake

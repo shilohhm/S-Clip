@@ -291,6 +291,7 @@ class SettingsPage(QWidget):
         content_layout.addWidget(self._build_replay_card(content))
         content_layout.addWidget(self._build_hotkeys_card(content))
         content_layout.addWidget(self._build_storage_card(content))
+        content_layout.addWidget(self._build_updates_card(content))
 
         # Apply the correct initial visibility now the cards exist. The
         # working copy's auto_configure flag decides which mode opens.
@@ -678,6 +679,31 @@ class SettingsPage(QWidget):
 
         return card
 
+    def _build_updates_card(self, parent: QWidget) -> Card:
+        """Build the update-check switch.
+
+        This is the only thing S-Clip does over the network, which is exactly
+        why it gets a visible switch and a plain description rather than being
+        assumed. Someone who would rather the application never contacted
+        anything should be able to see that choice and make it.
+        """
+        card = Card("Updates", parent=parent)
+        grid = self._make_card_grid(card)
+
+        self._check_updates_check = QCheckBox("Tell me when a new version is released", card)
+        self._check_updates_check.toggled.connect(self._on_check_updates_toggled)
+        self._add_spanning_widget(grid, 0, self._check_updates_check)
+
+        hint = self._make_hint_label(
+            "Asks GitHub once a day whether a newer release exists, and shows a link if "
+            "one does. Nothing is downloaded or installed, and nothing about you or your "
+            "PC is sent. This is the only time S-Clip uses the network."
+        )
+        hint.setWordWrap(True)
+        self._add_spanning_widget(grid, 1, hint)
+
+        return card
+
     # ---------------------------------------------------- Population
 
     def _populate_monitor_combo(self) -> None:
@@ -756,6 +782,11 @@ class SettingsPage(QWidget):
         self._capture_desktop_check.blockSignals(False)
 
         self._apply_audio_enabled_state(settings.capture_audio)
+
+        # Updates.
+        self._check_updates_check.blockSignals(True)
+        self._check_updates_check.setChecked(settings.check_for_updates)
+        self._check_updates_check.blockSignals(False)
         self._set_combo_to_value(self._mic_combo, settings.audio_input or "")
 
         # Replay buffer.
@@ -839,6 +870,10 @@ class SettingsPage(QWidget):
         if data is None:
             return
         self._working.monitor = str(data)
+        self._update_save_state()
+
+    def _on_check_updates_toggled(self, checked: bool) -> None:
+        self._working.check_for_updates = bool(checked)
         self._update_save_state()
 
     def _on_capture_audio_toggled(self, checked: bool) -> None:

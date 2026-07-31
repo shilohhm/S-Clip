@@ -197,6 +197,10 @@ class Settings:
     # first launch turns this on and writes hardware-tuned values; saving the
     # Advanced settings form turns it off so the user's choices are respected.
     auto_configure: bool = True
+    # Whether S-Clip may contact GitHub once a day to see if a newer release
+    # exists. This is the application's only outbound network connection, so
+    # it gets a switch rather than being assumed.
+    check_for_updates: bool = True
 
     def copy(self) -> Settings:
         """Return an independent copy - used when the settings page begins editing.

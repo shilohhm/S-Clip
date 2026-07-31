@@ -35,6 +35,7 @@ from sclip.contracts import CaptureEngine, DeviceRegistry, Hotkey, Settings, Set
 from sclip.paths import app_paths
 from sclip.ui.fonts import install_application_fonts
 from sclip.ui.theme import load_stylesheet
+from sclip.version import __version__
 
 if TYPE_CHECKING:
     from sclip.hotkeys import HotkeyListener
@@ -128,6 +129,7 @@ class MainWindow(QMainWindow):
 
         self._connect_hotkey_signals()
         self._connect_engine_signals()
+        self._start_update_check()
         self._register_settings_hotkeys(self._current_settings)
 
     # -- construction helpers ----------------------------------------------
@@ -219,6 +221,14 @@ class MainWindow(QMainWindow):
         self._title_bar.maximise_requested.connect(self._toggle_maximised)
         self._title_bar.close_requested.connect(self.close)
         outer.addWidget(self._title_bar)
+
+        # -- Update notice ----------------------------------------------
+        # Hidden unless a check finds a newer release, so on the ordinary
+        # path this contributes nothing but a zero-height widget.
+        from sclip.ui.update_banner import UpdateBanner
+
+        self._update_banner = UpdateBanner(central)
+        outer.addWidget(self._update_banner)
 
         # -- Body: sidebar + pages --------------------------------------
         body = QWidget(central)
@@ -353,6 +363,24 @@ class MainWindow(QMainWindow):
             layout.addWidget(button)
         layout.addStretch(1)
         return holder
+
+    def _start_update_check(self) -> None:
+        """Ask the banner to look for a newer release, if the user allows it.
+
+        The whole of this is best-effort. Nothing about noticing a new release
+        is worth a window that will not open, so a corrupt settings file, an
+        unresolvable config directory or anything else simply means no check
+        happens this session. The guard covers reading the preference *and*
+        resolving the path, because both can fail and neither is important
+        enough to propagate.
+        """
+        try:
+            enabled = self._settings_store.load().check_for_updates
+            state_file = app_paths().update_state_file
+        except Exception:
+            logger.debug("Skipping the update check: could not resolve its inputs")
+            return
+        self._update_banner.start_check(version=__version__, state_file=state_file, enabled=enabled)
 
     def _build_tray(self) -> None:
         """Create the system tray icon, menu, and click handler.

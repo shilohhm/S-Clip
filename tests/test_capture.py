@@ -152,6 +152,7 @@ def sandbox_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         styles_qss=tmp_path / "pkg" / "styles.qss",
         config_dir=tmp_path / "config",
         settings_file=tmp_path / "config" / "settings.json",
+        update_state_file=tmp_path / "config" / "update-check.json",
         clips_dir=data_dir / "clips",
         replay_buffer_dir=data_dir / "replay_buffer",
         log_file=data_dir / "logs" / "sclip.log",
