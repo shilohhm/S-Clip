@@ -25,6 +25,8 @@ graph TD
       core_ffmpeg[sclip.core.ffmpeg]
       core_capture[sclip.core.capture]
       core_replay[sclip.core.replay_buffer]
+      core_benchmark[sclip.core.benchmark]
+      core_hardware[sclip.core.hardware]
       core_capture --> core_ffmpeg
       core_replay --> core_ffmpeg
       core_settings --> contracts
@@ -32,6 +34,9 @@ graph TD
       core_devices --> core_ffmpeg
       core_capture --> contracts
       core_replay --> contracts
+      core_benchmark --> core_ffmpeg
+      core_hardware --> core_benchmark
+      core_hardware --> core_devices
     end
 
     subgraph "sclip.ui"
@@ -65,6 +70,8 @@ Three rules govern the dependency graph:
 | `sclip.core.ffmpeg`          | Locate the FFmpeg binary; spawn FFmpeg with the right plumbing                 | Application policy (which encoder, which preset)            |
 | `sclip.core.capture`         | Implement the `CaptureEngine` protocol - drives FFmpeg for manual recording    | Owning the replay buffer (delegated to `replay_buffer`)     |
 | `sclip.core.replay_buffer`   | Maintain a rolling FFmpeg segment muxer; concatenate segments into a clip      | Choosing when to clip (the GUI decides)                     |
+| `sclip.core.benchmark`       | Time encoders at a real capture target and judge whether they can sustain it   | Deciding what to do about the answer (that is `hardware`)   |
+| `sclip.core.hardware`        | Probe the machine and derive a recommended `Settings` from what it measures    | Persisting the result (the settings page saves it)          |
 | `sclip.ui`                   | PySide6 main window, pages, widgets, theming                                   | Anything that does not involve drawing pixels or handling input |
 | `sclip.app`                  | Wire the concrete implementations together at start-up; install the tray icon  | The actual recording                                        |
 

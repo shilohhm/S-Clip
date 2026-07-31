@@ -39,6 +39,12 @@ match.
 - **First launch is hardware-aware.** Display geometry, frame rate, encoder,
   preset, and quality defaults are selected from the detected machine rather
   than a one-size-fits-all profile.
+- **It can measure your PC rather than guess at it.** *Benchmark this PC* times
+  every available encoder on a short synthetic clip at your display's own
+  resolution and recommends the best one that keeps up. In Advanced mode,
+  *Test this setup* does the same for the settings you picked yourself and says
+  plainly when they will not hold. Nothing is captured from your screen and no
+  file is written.
 - **The interface stays out of the match.** Global hotkeys, tray operation,
   direct state feedback, and a local clip library keep the common path short.
 
@@ -89,6 +95,21 @@ S-Clip is deliberately small at the surface and serious underneath:
 | Architecture | Typed `Protocol` boundaries between UI, capture core, devices, and persistence |
 | Settings | Atomic writes, schema migration, hostile-input validation, and hardware-tuned defaults |
 | Quality | Strict mypy, Ruff, a whole-package coverage gate covering the interface as well as the core, and Windows CI across Python 3.10–3.13 |
+
+The settings benchmark is worth a paragraph too, because the obvious threshold
+is wrong. It measures how much faster than real time an encoder runs, and the
+tempting rule is that anything above 1.0 will do. On the development machine
+`libx264` at the `medium` preset measures **1.9x** at 1440p60 and comfortably
+clears that bar - and in a real capture it dropped **one frame in five** while
+using **227% of a CPU core**. The encode is only part of what a software encoder
+costs: it also pays to copy every frame out of GPU memory, and it competes with
+the game that is worth recording in the first place. So the bar is 3.0x for CPU
+encoders and 1.25x for GPU ones, which are numbers taken from that measurement
+rather than picked. Timing is done by encoding two different lengths and
+subtracting, because a single timed run charges FFmpeg's start-up to the
+encoder, and setting up an NVENC session costs enough to understate hardware
+encoding by about a quarter - biasing the benchmark against the very encoder it
+should be recommending.
 
 Saving is a remux, not a re-encode, and that is worth a paragraph because the
 obvious reasoning points the other way. Feeding the segments through FFmpeg's

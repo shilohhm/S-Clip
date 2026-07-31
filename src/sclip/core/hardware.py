@@ -10,15 +10,26 @@ The encoder check is deliberately empirical. FFmpeg reports ``h264_nvenc`` as
 a compiled-in encoder on every machine, whether or not an NVIDIA GPU is
 present, so the only trustworthy test is to ask FFmpeg to encode a couple of
 throwaway frames and see whether it succeeds.
+
+There are two strengths of check here, and the difference matters. The probe
+asks only whether an encoder *runs*, which is quick enough for a first launch
+where the user is waiting to see a window. The benchmark in
+:mod:`sclip.core.benchmark` asks whether it runs *fast enough for the display
+it is pointed at*, which is a better answer and takes seconds rather than
+milliseconds. So the probe is the default and the benchmark is what the
+Re-detect action runs, where the user has asked for the measurement and can be
+shown it happening.
 """
 
 from __future__ import annotations
 
 import logging
 import subprocess
+from dataclasses import dataclass
 
 from sclip.contracts import DeviceRegistry, Settings, encoder_by_codec, encoder_label
-from sclip.core.ffmpeg import FFmpegNotFoundError, run_ffmpeg
+from sclip.core.benchmark import EncoderTrial, benchmark_encoder, find_best_configuration
+from sclip.core.ffmpeg import FFmpegNotFoundError, parse_resolution, run_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -118,18 +129,119 @@ def _recommended_preset(encoder: str) -> str:
     return preset
 
 
-def recommend_settings(base: Settings, registry: DeviceRegistry) -> Settings:
+def measure_encoder_choice(
+    *, width: int, height: int, fps: int, quality: int = _RECOMMENDED_CRF
+) -> tuple[str, str, list[EncoderTrial]]:
+    """Choose an encoder and preset by measuring them at a real target.
+
+    Returns the chosen pair along with every trial run, so a caller can explain
+    the choice. Falls back to the capability probe when nothing clears the bar,
+    which is the honest outcome on a machine that genuinely cannot sustain the
+    requested display: something still has to be recommended, and the fastest
+    preset of the best available encoder is the closest thing to a right answer.
+    """
+    best, attempts = find_best_configuration(
+        list(_ENCODER_PRIORITY), width=width, height=height, fps=fps, quality=quality
+    )
+    if best is not None:
+        return best.encoder, best.preset, attempts
+
+    logger.warning(
+        "No encoder sustained %dx%d at %d fps; falling back to the capability probe",
+        width,
+        height,
+        fps,
+    )
+    encoder = detect_best_encoder()
+    # The measured ladder was exhausted, so ask for speed over quality rather
+    # than repeating a preset already shown to be too slow.
+    fastest = next(
+        (t.preset for t in reversed(attempts) if t.encoder == encoder and t.available),
+        _recommended_preset(encoder),
+    )
+    return encoder, fastest, attempts
+
+
+def assess_settings(settings: Settings) -> EncoderTrial:
+    """Measure whether ``settings`` can actually be captured on this machine.
+
+    This is the check that was missing. Advanced mode will happily accept an
+    encoder and preset that cannot keep up with the chosen display, and the
+    symptom is not an error: it is a clip that stutters, because dropped frames
+    are silently replaced by repeats of the frame before.
+    """
+    width, height = parse_resolution(settings.resolution)
+    return benchmark_encoder(
+        settings.encoder,
+        settings.preset,
+        width=width,
+        height=height,
+        fps=settings.fps,
+        quality=settings.crf,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class Recommendation:
+    """A recommended configuration together with the evidence behind it.
+
+    The measurement is worth carrying alongside the settings rather than being
+    thrown away. A user who has just waited for a benchmark is owed the number
+    it produced: "S-Clip picked NVENC" invites the question the trial already
+    answers.
+    """
+
+    settings: Settings
+    # ``None`` when the choice came from the capability probe rather than a
+    # measurement, which is the case on first launch.
+    trial: EncoderTrial | None
+
+
+def recommend_measured(base: Settings, registry: DeviceRegistry) -> Recommendation:
+    """Benchmark the machine and recommend what it can actually sustain."""
+    return _build_recommendation(base, registry, benchmark=True)
+
+
+def recommend_settings(
+    base: Settings, registry: DeviceRegistry, *, benchmark: bool = False
+) -> Settings:
     """Derive a hardware-tuned :class:`Settings` from a base configuration.
 
     The capture-related fields (encoder, preset, quality, resolution, monitor,
     audio devices) are replaced with detected values. The user's own
     preferences - hotkeys, replay-buffer length, clip folder - are carried
     across from ``base`` untouched.
-    """
-    encoder = detect_best_encoder()
-    preset = _recommended_preset(encoder)
 
+    With ``benchmark`` set, the encoder and preset are chosen by timing them at
+    the display that was just selected rather than by a capability probe. That
+    costs seconds rather than milliseconds, so it is off by default: first
+    launch should produce a window, not a wait.
+
+    Use :func:`recommend_measured` instead when the measurement itself is
+    wanted, rather than only the settings derived from it.
+    """
+    return _build_recommendation(base, registry, benchmark=benchmark).settings
+
+
+def _build_recommendation(
+    base: Settings, registry: DeviceRegistry, *, benchmark: bool
+) -> Recommendation:
+    """Do the work behind both public recommendation entry points."""
     monitor_name, resolution = _recommend_display(base, registry)
+    trial: EncoderTrial | None = None
+
+    if benchmark:
+        width, height = parse_resolution(resolution)
+        encoder, preset, attempts = measure_encoder_choice(
+            width=width, height=height, fps=_RECOMMENDED_FPS
+        )
+        trial = next(
+            (t for t in reversed(attempts) if t.encoder == encoder and t.preset == preset), None
+        )
+    else:
+        encoder = detect_best_encoder()
+        preset = _recommended_preset(encoder)
+
     microphone = _recommend_microphone(registry)
 
     recommended = Settings(
@@ -159,7 +271,7 @@ def recommend_settings(base: Settings, registry: DeviceRegistry) -> Settings:
         monitor_name,
         microphone or "none",
     )
-    return recommended
+    return Recommendation(settings=recommended, trial=trial)
 
 
 def _recommend_display(base: Settings, registry: DeviceRegistry) -> tuple[str, str]:
@@ -195,7 +307,11 @@ def _recommend_microphone(registry: DeviceRegistry) -> str:
 
 
 __all__ = [
+    "Recommendation",
+    "assess_settings",
     "detect_best_encoder",
     "encoder_label",
+    "measure_encoder_choice",
+    "recommend_measured",
     "recommend_settings",
 ]

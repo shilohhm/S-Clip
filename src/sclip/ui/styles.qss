@@ -760,6 +760,14 @@ QLabel#FieldHint {
     background: transparent;
 }
 
+/* A benchmark result saying the chosen setup cannot keep up. Muted grey is
+ * right for advice the user can ignore; this is a finding they should act on,
+ * so it takes the warning colour without escalating to the error red used for
+ * fields that block saving. */
+QLabel#FieldHint[role="warning"] {
+    color: %(warning)s;
+}
+
 QLabel#FieldError {
     color: %(danger)s;
     font-size: %(caption_size)spx;

@@ -32,11 +32,12 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -61,12 +62,76 @@ from sclip.contracts import (
     encoder_by_codec,
     encoder_label,
 )
-from sclip.core.hardware import recommend_settings
+from sclip.core.benchmark import EncoderTrial
+from sclip.core.hardware import Recommendation, assess_settings, recommend_measured
 from sclip.paths import app_paths
 from sclip.ui.theme import SPACING_LG, SPACING_MD, SPACING_SM, SPACING_XL, SPACING_XS
 from sclip.ui.widgets import Card, HotkeyEdit, IconButton, SegmentedControl
 
 logger = logging.getLogger(__name__)
+
+
+def _verdict_text(trial: EncoderTrial) -> str:
+    """Turn a measurement into a sentence that says what to do about it."""
+    if not trial.available:
+        return (
+            f"{trial.encoder} does not run on this PC. Pick another encoder, or use Automatic mode."
+        )
+    if trial.sustains_capture:
+        return (
+            f"Comfortable: {trial.encoder} {trial.preset} encodes "
+            f"{trial.achieved_fps:.0f} fps at {trial.width}x{trial.height}, "
+            f"{trial.headroom:.1f} times faster than the {trial.fps} fps you asked for."
+        )
+    # Naming the shortfall in frames-per-second is more use than a ratio,
+    # because it is the same unit as the setting the user would change.
+    return (
+        f"Too slow: {trial.encoder} {trial.preset} manages only "
+        f"{trial.achieved_fps:.0f} fps at {trial.width}x{trial.height}. Capturing "
+        f"{trial.fps} fps needs more room than that once the game is running too, "
+        "so clips will stutter. Try a faster preset, a hardware encoder, or a "
+        "lower resolution."
+    )
+
+
+class _HardwareSignals(QObject):
+    """Carrier so a runnable can hand its result back to the GUI thread.
+
+    ``QRunnable`` is not a ``QObject`` and cannot own signals, so a small
+    companion object bridges the two - the same arrangement the About page
+    uses for its FFmpeg probe.
+    """
+
+    # Emits the worker's return value, or ``None`` if it raised.
+    finished = Signal(object)
+
+
+class _HardwareWorker(QRunnable):
+    """Run one blocking hardware call on a worker thread.
+
+    Both callers measure encoders, which means spawning FFmpeg several times
+    over. On a machine with no usable GPU encoder the preset ladder is walked
+    from ``medium`` downwards, so this can run for tens of seconds. Doing that
+    on the GUI thread would freeze the window mid-measurement, and a frozen
+    window during a benchmark looks exactly like a crash.
+    """
+
+    def __init__(self, work: Callable[[], object]) -> None:
+        super().__init__()
+        self._work = work
+        self.signals = _HardwareSignals()
+
+    def run(self) -> None:  # pragma: no cover - exercised at runtime only
+        try:
+            result = self._work()
+        except Exception:
+            # Hardware probing touches FFmpeg and the device layer, so it has
+            # plenty of ways to fail. None of them should take the settings
+            # page down: report nothing and leave the form as it was.
+            logger.exception("Hardware measurement failed")
+            self.signals.finished.emit(None)
+            return
+        self.signals.finished.emit(result)
 
 
 # Width / height as ``WIDTHxHEIGHT`` - tolerant of stray spaces and the
@@ -144,6 +209,24 @@ class SettingsPage(QWidget):
         # Set true when any user-facing field is currently invalid; the Save
         # button is bound to its inverse.
         self._is_valid = True
+
+        # Hardware measurement runs here rather than on the GUI thread. One
+        # thread is enough and is also the point: a second concurrent
+        # benchmark would contend with the first and measure them both slow.
+        self._pool = QThreadPool(self)
+        self._pool.setMaxThreadCount(1)
+        self._measuring = False
+
+        # Created before the cards that host them: building a card populates
+        # its fields, which fires the change handlers, which clear these.
+        self._recommended_verdict = self._make_hint_label("")
+        self._check_verdict = self._make_hint_label("")
+        for label in (self._recommended_verdict, self._check_verdict):
+            label.setVisible(False)
+            # A verdict is a sentence or two rather than a caption, so it has
+            # to wrap. Without this it lays out as one line and is clipped by
+            # the card the moment the window is anything less than wide.
+            label.setWordWrap(True)
 
         self._build_ui()
         self._populate_from_settings(self._working)
@@ -334,13 +417,23 @@ class SettingsPage(QWidget):
 
         # Re-detect action: a low-emphasis ghost button is right here - the
         # primary action on the page is still Save in the footer.
-        redetect_button = IconButton(text="Re-detect hardware", role="ghost", parent=card)
-        redetect_button.clicked.connect(self._on_redetect_hardware)
+        self._redetect_button = IconButton(text="Benchmark this PC", role="ghost", parent=card)
+        self._redetect_button.clicked.connect(self._on_redetect_hardware)
         redetect_row = QHBoxLayout()
         redetect_row.setContentsMargins(0, 0, 0, 0)
-        redetect_row.addWidget(redetect_button)
+        redetect_row.addWidget(self._redetect_button)
         redetect_row.addStretch(1)
         card.body_layout().addLayout(redetect_row)
+
+        benchmark_hint = self._make_hint_label(
+            "Times each encoder on a short test clip at your display's resolution, "
+            "then picks the best one that keeps up. Nothing is recorded from your screen."
+        )
+        benchmark_hint.setWordWrap(True)
+        card.body_layout().addWidget(benchmark_hint)
+
+        # Where the measurement result lands. Hidden until there is one.
+        card.body_layout().addWidget(self._recommended_verdict)
 
         # Populate the value labels from the current working copy.
         self._refresh_recommended_card()
@@ -472,6 +565,19 @@ class SettingsPage(QWidget):
         self._populate_monitor_combo()
         self._monitor_combo.currentIndexChanged.connect(self._on_monitor_changed)
         self._add_field_row(grid, 7, "Monitor", self._monitor_combo)
+
+        # Advanced mode accepts any combination of these fields, including
+        # ones this machine cannot sustain. That failure is silent - the clip
+        # saves, it just stutters - so there has to be a way to ask.
+        self._check_button = IconButton(text="Test this setup", role="ghost", parent=card)
+        self._check_button.clicked.connect(self._on_check_setup)
+        check_row = QHBoxLayout()
+        check_row.setContentsMargins(0, 0, 0, 0)
+        check_row.addWidget(self._check_button)
+        check_row.addStretch(1)
+        card.body_layout().addLayout(check_row)
+
+        card.body_layout().addWidget(self._check_verdict)
 
         return card
 
@@ -692,10 +798,12 @@ class SettingsPage(QWidget):
     def _on_resolution_changed(self, value: str) -> None:
         self._working.resolution = value
         self._validate_resolution()
+        self._invalidate_verdict()
         self._update_save_state()
 
     def _on_fps_changed(self, value: int) -> None:
         self._working.fps = int(value)
+        self._invalidate_verdict()
         self._update_save_state()
 
     def _on_encoder_changed(self, _index: int) -> None:
@@ -703,6 +811,7 @@ class SettingsPage(QWidget):
         if codec is None:
             return
         self._working.encoder = str(codec)
+        self._invalidate_verdict()
         self._populate_preset_combo(self._working.encoder)
         # Pick the first preset on a fresh encoder; the user can change it.
         if self._preset_combo.count() > 0:
@@ -717,10 +826,12 @@ class SettingsPage(QWidget):
         if data is None:
             return
         self._working.preset = str(data)
+        self._invalidate_verdict()
         self._update_save_state()
 
     def _on_quality_changed(self, value: int) -> None:
         self._working.crf = int(value)
+        self._invalidate_verdict()
         self._update_save_state()
 
     def _on_monitor_changed(self, _index: int) -> None:
@@ -833,23 +944,114 @@ class SettingsPage(QWidget):
         )
 
     def _on_redetect_hardware(self) -> None:
-        """Re-probe the hardware and adopt a fresh recommended configuration.
+        """Benchmark the machine and adopt the configuration it can sustain.
 
-        ``recommend_settings`` touches real hardware (FFmpeg probes, device
-        enumeration), so any failure is logged and swallowed - a failed probe
-        should never tear the settings page down.
+        Unlike the recommendation made on first launch, this one is measured:
+        each candidate encoder is timed at the display it would actually be
+        capturing. That is worth seconds of the user's time precisely because
+        they asked for it, and it is the difference between "this encoder
+        exists" and "this encoder keeps up".
+
+        The work runs on a worker thread and the result arrives at
+        :meth:`_on_hardware_measured`.
         """
-        try:
-            recommended = recommend_settings(self._working, self._device_registry)
-        except Exception:
-            logger.exception("Hardware re-detection failed")
+        if self._measuring:
             return
-        self._working = recommended
+        base = self._working.copy()
+        registry = self._device_registry
+        self._begin_measuring("Measuring your hardware...")
+        worker = _HardwareWorker(lambda: recommend_measured(base, registry))
+        worker.signals.finished.connect(self._on_hardware_measured)
+        self._pool.start(worker)
+
+    def _on_hardware_measured(self, recommendation: object) -> None:
+        """Adopt a freshly measured configuration, or leave the form alone."""
+        self._end_measuring()
+        if not isinstance(recommendation, Recommendation):
+            # The worker already logged the cause. Saying so beats silently
+            # leaving the button looking like it did nothing.
+            self._set_benchmark_verdict("Could not measure this machine. Settings are unchanged.")
+            return
+        self._working = recommendation.settings
         # Repopulate the full form so Advanced mode reflects the new values
         # too, then refresh this card's summary and re-run validation.
         self._populate_from_settings(self._working)
         self._refresh_recommended_card()
         self._validate_all()
+        # Report the measurement, not just its consequence. Having waited for a
+        # benchmark, the user should be able to see what it found.
+        trial = recommendation.trial
+        if trial is None:
+            self._set_benchmark_verdict(
+                "Nothing on this PC could keep up with your display, so the fastest "
+                "available setup was chosen. Expect some dropped frames.",
+                is_warning=True,
+            )
+        else:
+            self._set_benchmark_verdict(_verdict_text(trial))
+
+    # ------------------------------------------- Advanced-mode benchmark
+
+    def _on_check_setup(self) -> None:
+        """Measure whether the user's own choices can sustain a capture.
+
+        Advanced mode will accept any combination of encoder, preset,
+        resolution and frame rate, and an over-ambitious one does not announce
+        itself: the capture still runs and the clip still saves, it just
+        stutters, because frames that missed their deadline were replaced by
+        repeats. This puts a number on it before that happens.
+        """
+        if self._measuring:
+            return
+        candidate = self._working.copy()
+        self._begin_measuring("Measuring...")
+        worker = _HardwareWorker(lambda: assess_settings(candidate))
+        worker.signals.finished.connect(self._on_setup_checked)
+        self._pool.start(worker)
+
+    def _on_setup_checked(self, trial: object) -> None:
+        """Report what the chosen configuration actually managed."""
+        self._end_measuring()
+        if not isinstance(trial, EncoderTrial):
+            self._set_benchmark_verdict("Could not measure this setup.")
+            return
+        self._set_benchmark_verdict(_verdict_text(trial), is_warning=not trial.sustains_capture)
+
+    def _begin_measuring(self, message: str) -> None:
+        """Enter the measuring state: buttons disabled, progress shown."""
+        self._measuring = True
+        self._redetect_button.setEnabled(False)
+        self._check_button.setEnabled(False)
+        self._set_benchmark_verdict(message)
+
+    def _end_measuring(self) -> None:
+        self._measuring = False
+        self._redetect_button.setEnabled(True)
+        self._check_button.setEnabled(True)
+
+    def _invalidate_verdict(self) -> None:
+        """Drop a measurement that no longer describes the form.
+
+        Changing the encoder, preset, resolution, frame rate or quality
+        invalidates whatever was measured before it. Leaving a stale
+        "Comfortable" sitting under settings it was never taken against would
+        be worse than showing nothing, because the user would believe it.
+        """
+        if self._measuring:
+            # A measurement in flight owns the label; it will write the result.
+            return
+        self._set_benchmark_verdict("")
+
+    def _set_benchmark_verdict(self, text: str, *, is_warning: bool = False) -> None:
+        """Show a measurement result on both cards, or clear it when empty."""
+        for label in (self._recommended_verdict, self._check_verdict):
+            label.setText(text)
+            label.setVisible(bool(text))
+            # Re-polish so the stylesheet picks up the changed role.
+            label.setProperty("role", "warning" if is_warning else None)
+            style = label.style()
+            style.unpolish(label)
+            style.polish(label)
 
     # ---------------------------------------------------- Save / Cancel
 
