@@ -79,7 +79,7 @@ S-Clip is deliberately small at the surface and serious underneath:
 | Concurrency | Explicit FFmpeg process ownership and Qt-thread event bridges |
 | Architecture | Typed `Protocol` boundaries between UI, capture core, devices, and persistence |
 | Settings | Atomic writes, schema migration, hostile-input validation, and hardware-tuned defaults |
-| Quality | Strict mypy, Ruff, pytest, deterministic UI assets, and Windows CI across Python 3.10–3.13 |
+| Quality | Strict mypy, Ruff, a whole-package coverage gate covering the interface as well as the core, and Windows CI across Python 3.10–3.13 |
 
 The final replay stitch intentionally re-encodes. A stream copy is faster, but
 small audio/video duration differences at each segment boundary can produce
@@ -175,8 +175,15 @@ The full suite includes FFmpeg-backed replay integration tests:
 python -m pytest
 ```
 
-CI runs linting, formatting, strict type checking, coverage, compatibility
-tests, wheel builds, and packaged-asset verification on Windows.
+Coverage is gated over the whole package rather than the core alone, so the
+interface counts too:
+
+```powershell
+python -m pytest -m "not slow" --cov=sclip --cov-report=term-missing
+```
+
+CI runs linting, formatting, strict type checking, that coverage gate,
+compatibility tests, wheel builds, and packaged-asset verification on Windows.
 
 ## Project status
 

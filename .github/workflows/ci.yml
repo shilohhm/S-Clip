@@ -32,14 +32,17 @@ jobs:
         run: python -m ruff format --check .
       - name: Type-check
         run: python -m mypy src
+      # Coverage is measured over the whole package, interface included. It
+      # used to cover only sclip.contracts and sclip.core, which left the UI
+      # layer -- the majority of the code, and the part a user actually touches
+      # -- outside the gate entirely.
       - name: Test with coverage
         run: >-
           python -m pytest -m "not slow"
-          --cov=sclip.contracts
-          --cov=sclip.core
+          --cov=sclip
           --cov-report=term-missing
           --cov-report=xml
-          --cov-fail-under=55
+          --cov-fail-under=67
           -p no:cacheprovider
 
   compatibility:
