@@ -155,6 +155,11 @@ class RollingBuffer:
         self._process: subprocess.Popen[str] | None = None
         self._spec: BufferSpec | None = None
         self._on_error: Callable[[str], None] | None = None
+        # Segments that survived the purge at start, as ``name -> mtime``.
+        # Anything still carrying its recorded mtime has not been rewritten by
+        # this session and must never reach a clip; see
+        # _snapshot_segments_locked.
+        self._stale_segments: dict[str, float] = {}
 
     @property
     def directory(self) -> Path:
@@ -192,6 +197,7 @@ class RollingBuffer:
 
             self._directory.mkdir(parents=True, exist_ok=True)
             self._purge_segments_locked()
+            self._remember_survivors_locked()
 
             argv = build_segment_args(spec)
             logger.info(
@@ -320,6 +326,26 @@ class RollingBuffer:
         else:
             logger.debug("Replay buffer FFmpeg had already exited (code %s)", process.returncode)
 
+    def _remember_survivors_locked(self) -> None:
+        """Note any segment the purge could not remove, with its mtime.
+
+        A file survives the purge when something still holds it open — the
+        classic case being an FFmpeg orphaned by a previous crash. Recording it
+        here is what lets the snapshot tell somebody else's footage from ours.
+        """
+        survivors: dict[str, float] = {}
+        for segment in expected_segment_paths(self._directory):
+            try:
+                survivors[segment.name] = segment.stat().st_mtime
+            except OSError:
+                continue
+        if survivors:
+            logger.warning(
+                "%d segment(s) survived the purge; they will be excluded from clips",
+                len(survivors),
+            )
+        self._stale_segments = survivors
+
     def _purge_segments_locked(self) -> None:
         """Delete every leftover ``.ts`` segment in the buffer directory."""
         if not self._directory.exists():
@@ -339,8 +365,39 @@ class RollingBuffer:
 
         If only one segment exists yet (the buffer has only just started) we
         keep it: a slightly rough clip beats refusing to save anything.
+
+        Leftovers from an earlier capture are dropped first. Purging on start
+        is the primary defence, but it cannot succeed against a file still held
+        open by a capture that outlived its parent. Without this filter those
+        segments sort in by modification time like any other and get stitched
+        into the clip, so a save would hand the user footage from a session
+        they thought had ended. The rule is worth stating as an invariant: a
+        clip contains only what this buffer recorded.
+
+        Identity is by recorded modification time rather than by a clock
+        comparison. File timestamps are coarser than :func:`time.time`, so
+        "written after we started" mis-classifies a genuinely fresh segment as
+        stale often enough to empty the buffer entirely. A survivor that still
+        carries the exact mtime seen at start has not been touched since; once
+        the muxer rewrites that slot the mtime changes and it counts again.
         """
         segments = expected_segment_paths(self._directory)
+        if self._stale_segments:
+            fresh: list[Path] = []
+            for segment in segments:
+                try:
+                    if self._stale_segments.get(segment.name) == segment.stat().st_mtime:
+                        continue
+                except OSError:
+                    continue  # rotated away mid-scan; not ours to worry about
+                fresh.append(segment)
+            if len(fresh) != len(segments):
+                logger.warning(
+                    "Ignoring %d segment(s) left over from a previous capture",
+                    len(segments) - len(fresh),
+                )
+            segments = fresh
+
         if len(segments) > 1:
             return segments[:-1]
         return segments

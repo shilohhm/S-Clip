@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from sclip.contracts import Monitor, encoder_by_codec
+from sclip.core.process_guard import guard_child
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ def start_ffmpeg(
     ff = binary or find_ffmpeg()
     cmdline = _argv_with_binary(ff, args)
     logger.debug("Starting FFmpeg: %s", " ".join(cmdline))
-    return subprocess.Popen(
+    process = subprocess.Popen(
         cmdline,
         stdin=subprocess.PIPE,
         stdout=subprocess.DEVNULL,
@@ -273,6 +274,12 @@ def start_ffmpeg(
         bufsize=0,  # unbuffered: 'q' should reach FFmpeg the moment we send it
         **popen_kwargs(),
     )
+    # The stop path below is careful, but it only runs if S-Clip lives long
+    # enough to run it. Enrol the child so the kernel kills it if we are killed
+    # outright; see sclip.core.process_guard for why that matters more than it
+    # sounds.
+    guard_child(process)
+    return process
 
 
 def stop_ffmpeg(process: subprocess.Popen[str], *, timeout: float = 8.0) -> int:

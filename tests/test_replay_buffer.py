@@ -289,6 +289,56 @@ def _running_buffer(
     return buffer
 
 
+def test_a_clip_never_includes_segments_from_a_previous_session(buffer_dir: Path) -> None:
+    """Leftovers from an earlier capture must not be stitched into a new clip.
+
+    An FFmpeg orphaned by a crash keeps writing into this directory, so purging
+    on start cannot be relied on alone: the files may be held open, or arrive
+    after the purge. They sort in by modification time like any other segment,
+    which means a save would hand back footage from a session the user believed
+    had ended. This is the regression test for that.
+    """
+    stale = _write_segments(buffer_dir, 3)  # survivors of a failed purge
+    buffer = _running_buffer(buffer_dir)
+    buffer._remember_survivors_locked()
+
+    # Now this session writes its own, which are newer than the session start.
+    fresh = []
+    for index in range(3, 6):
+        segment = buffer_dir / f"seg_{index:03d}.ts"
+        segment.write_bytes(b"\0" * 2048)
+        fresh.append(segment)
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    # Three fresh segments, newest dropped as still-being-written, leaves two.
+    assert telemetry.segment_count == 2
+    assert telemetry.bytes_on_disk == 2 * 2048
+    assert all(path.exists() for path in stale), "stale files should be ignored, not deleted"
+
+
+def test_the_window_is_not_exceeded_by_leftover_segments(buffer_dir: Path) -> None:
+    """A 20s window must not report 26s because old files were counted.
+
+    This is the shape of the bug seen in real capture: the ring holds eleven
+    slots, yet telemetry reported thirteen segments and the saved clip ran six
+    seconds longer than the configured window.
+    """
+    _write_segments(buffer_dir, 8)  # a previous session's full ring
+    buffer = _running_buffer(buffer_dir, seconds=20, segment_seconds=2)
+    buffer._remember_survivors_locked()
+
+    for index in range(8, 12):
+        (buffer_dir / f"seg_{index:03d}.ts").write_bytes(b"\0" * 1024)
+
+    telemetry = buffer.telemetry()
+
+    assert telemetry is not None
+    assert telemetry.segment_count <= telemetry.segment_capacity
+    assert telemetry.buffered_seconds <= telemetry.window_seconds
+
+
 def test_telemetry_returns_none_when_the_buffer_is_not_running(buffer_dir: Path) -> None:
     buffer = RollingBuffer(buffer_dir)
     assert buffer.telemetry() is None
