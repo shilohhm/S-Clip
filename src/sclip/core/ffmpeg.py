@@ -115,13 +115,36 @@ class CapturePlan:
     audio: AudioConfig
 
 
-def find_ffmpeg() -> Path:
-    """Locate the FFmpeg binary, preferring the bundled copy.
+def _bundled_ffmpeg_candidates(root: Path, binary_name: str) -> list[Path]:
+    """Every place a binary could sit under one root, best candidate first.
 
-    The bundled distribution is checked first so a portable install always
-    uses the version it shipped with; only then do we fall back to whatever
-    is on PATH. A clear exception here beats a confusing failure deep inside
-    a later Popen call.
+    Two shapes are supported deliberately. ``ffmpeg/`` (with or without a
+    ``bin`` subdirectory, since the official zips differ) is where an install
+    puts a deliberate copy, so it is checked first. ``ffmpeg-<version>-.../``
+    is what dropping an official archive into a checkout leaves behind; the
+    version used to be hardcoded here, which meant any release other than the
+    one named went unnoticed. Versioned matches are sorted newest-first.
+    """
+    candidates = [
+        root / "ffmpeg" / "bin" / binary_name,
+        root / "ffmpeg" / binary_name,
+    ]
+    try:
+        versioned = sorted(root.glob(f"ffmpeg-*/bin/{binary_name}"), reverse=True)
+    except OSError as exc:  # unreadable directory; treat as "nothing here"
+        logger.debug("Could not scan %s for a bundled FFmpeg: %s", root, exc)
+        versioned = []
+    candidates.extend(versioned)
+    return candidates
+
+
+def find_ffmpeg() -> Path:
+    """Locate the FFmpeg binary, preferring a copy shipped alongside the app.
+
+    A bundled distribution is checked before PATH so a portable install always
+    uses the version it shipped with, rather than silently picking up whatever
+    else the machine happens to have. A clear exception here beats a confusing
+    failure deep inside a later Popen call.
     """
     binary_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
 
@@ -130,14 +153,11 @@ def find_ffmpeg() -> Path:
     from sclip.paths import app_paths
 
     paths = app_paths()
-    candidates: list[Path] = [
-        paths.project_root / "ffmpeg-7.1-essentials_build" / "bin" / binary_name,
-        paths.package_root / "ffmpeg-7.1-essentials_build" / "bin" / binary_name,
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            logger.debug("Using bundled FFmpeg at %s", candidate)
-            return candidate
+    for root in (paths.project_root, paths.package_root):
+        for candidate in _bundled_ffmpeg_candidates(root, binary_name):
+            if candidate.is_file():
+                logger.debug("Using bundled FFmpeg at %s", candidate)
+                return candidate
 
     on_path = shutil.which("ffmpeg")
     if on_path is not None:
@@ -145,7 +165,8 @@ def find_ffmpeg() -> Path:
         return Path(on_path)
 
     raise FFmpegNotFoundError(
-        "FFmpeg binary was not found. Install FFmpeg or restore the bundled copy."
+        "FFmpeg binary was not found. Install FFmpeg and make sure it is on "
+        "PATH, or place a copy in an 'ffmpeg' folder beside S-Clip."
     )
 
 
