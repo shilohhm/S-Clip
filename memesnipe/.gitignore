@@ -1,0 +1,6 @@
+# Journals and recordings are per-run data, not source.
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+signals.jsonl
+config.toml

@@ -1,0 +1,99 @@
+# memesnipe configuration.
+#
+# Secrets are NOT in this file and never should be. Set them in the
+# environment instead:
+#
+#   MEMESNIPE_X_BEARER   X API v2 bearer token (poll and stream modes)
+#   MEMESNIPE_WALLET_KEY base58 Solana secret key   (live mode only)
+#   MEMESNIPE_ARM        must equal the arm string  (live mode only)
+
+db_path = "memesnipe.sqlite3"
+log_level = "INFO"
+
+[twitter]
+# "poll"   works on any paid X tier; costs you half the interval in latency.
+# "stream" needs filtered-stream access and is meaningfully faster.
+# "replay" reads fixtures - no API key needed.
+mode = "poll"
+# Anything that reaches us later than this is not an edge any more. Raising it
+# does not make you faster, it just makes you buy worse entries.
+max_feed_lag_ms = 8000
+
+[[twitter.accounts]]
+handle = "elonmusk"
+weight = 1.5
+poll_seconds = 2.0
+# Only posts containing one of these are considered. Substrings, or /regex/.
+must_match = ["$", "pump.fun", "/\\bCA\\b/"]
+
+[[twitter.accounts]]
+handle = "aeyakovenko"
+weight = 1.0
+poll_seconds = 3.0
+must_match = []
+
+[discovery]
+chain = "solana"
+timeout_ms = 1500
+retries = 3
+retry_delay_ms = 400
+# A $TICKER is only trusted when the leading pair has this much more liquidity
+# than the next one. Ticker collisions are deliberately farmed; do not lower it.
+ticker_liquidity_ratio = 3.0
+
+[risk]
+# "strict" or "degen". Degen relaxes the quality filters only - the price
+# impact cap and the blocklists apply in both.
+profile = "strict"
+min_liquidity_usd = 8000.0
+max_liquidity_usd = 5000000.0
+min_pair_age_seconds = 20.0
+max_pair_age_seconds = 1800.0
+min_buys_5m = 15
+require_sells = true
+max_fdv_usd = 20000000.0
+max_price_impact_bps = 400.0
+blocked_mints = []
+blocked_deployers = []
+
+[sizing]
+base_size_usd = 25.0
+max_size_usd = 100.0
+max_conviction_multiple = 3.0
+
+[exits]
+# (multiple of entry, fraction of what is left to sell at that multiple)
+take_profit_ladder = [[2.0, 0.5], [4.0, 0.5], [10.0, 0.5]]
+trailing_stop_pct = 0.35
+hard_stop_pct = 0.55
+max_hold_seconds = 900.0
+# The rug guard. If the pool loses this share of the liquidity it had at entry,
+# sell everything immediately at any price.
+liquidity_drawdown_exit_pct = 0.40
+poll_seconds = 3.0
+
+[execution]
+mode = "paper"
+venue = "jupiter"
+slippage_bps = 1500.0
+priority_fee_lamports = 200000
+rpc_url = ""
+
+# Paper-fill realism. These defaults are deliberately pessimistic. Replace them
+# with numbers measured from your own live fills - and if you find yourself
+# lowering them because the equity curve looks nicer, the curve is what is
+# wrong.
+paper_latency_ms = 900
+paper_price_drift_bps_per_100ms = 12.0
+paper_competition_bps = 150.0
+paper_swap_fee_bps = 100.0
+paper_fixed_cost_usd = 0.12
+
+[guards]
+# Hard stops. They apply in paper and live alike, on purpose: a limit you have
+# never watched fire is a limit you have not tested.
+max_open_positions = 5
+max_daily_loss_usd = 250.0
+max_daily_spend_usd = 1000.0
+max_trades_per_hour = 30
+dedupe_mints = true

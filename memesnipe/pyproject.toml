@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memesnipe"
+version = "0.1.0"
+description = "Signal-driven memecoin trading bot with a paper-trading-first design."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Only needed to send real transactions. Paper and replay runs do not import it.
+solana = ["solders>=0.21"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.16,<0.17",
+]
+
+[project.scripts]
+memesnipe = "memesnipe.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memesnipe"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "PL", "RUF"]
+ignore = [
+    "PLR0913", # long parameter lists are how the pipeline stages are wired
+    "PLR2004", # thresholds read better inline than as named constants
+    "PLC0415", # imports are lazy on purpose: paper runs must not need solders
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "S101"]
+# Argument parsing and the exit rules are branchy because the domain is:
+# splitting either one into helpers would scatter a single ordered decision
+# across several places for no gain in clarity.
+"src/memesnipe/cli.py" = ["PLR0911", "PLR0912", "PLR0915"]
+"src/memesnipe/portfolio.py" = ["PLR0911"]
+"src/memesnipe/extract.py" = ["PLR0911"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
