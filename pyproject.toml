@@ -43,7 +43,7 @@ dev = [
     # new rule turns CI red with no change to this repository, which is exactly
     # what happened when PLR0917 landed. Dependabot proposes the bump as a pull
     # request instead, so the new rules are met on a branch rather than master.
-    "ruff>=0.16,<0.17",
+    "ruff>=0.16,<0.18",
     "mypy>=1.10",
     "build>=1.2",
     # Freezes the application for the Windows installer. Windows-only because
